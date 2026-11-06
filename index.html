@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>Orijinal Minecraft</title>
+<title>Orijinal Minecraft - Sonsuz Dünya</title>
 <style>
 :root{--ink:#f6f1e7;--mut:#a9b2bf;--mc-green:#55ff55;--mc-gold:#ffaa00;--panel:rgba(20,20,24,.82)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -17,7 +17,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 #crosshair::after{top:0;left:9px;width:2px;height:20px}
 
 /* HUD Panel */
-#hud{position:fixed;top:8px;left:8px;display:flex;flex-direction:column;gap:4px;font-size:11px;font-family:monospace;background:var(--panel);padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);z-index:10;pointer-events:none}
+#hud{position:fixed;top:8px;left:8px;display:flex;flex-direction:column;gap:3px;font-size:11px;font-family:monospace;background:var(--panel);padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);z-index:10;pointer-events:none}
 #hud b{color:var(--mc-green)}
 #versionTag{position:fixed;top:8px;right:8px;font-size:11px;font-family:monospace;background:var(--panel);padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.15);color:var(--mc-gold);z-index:10;pointer-events:none}
 
@@ -58,10 +58,12 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 <div id="hud">
   <div><b>FPS:</b> <span id="fps">60</span></div>
   <div><b>XYZ:</b> <span id="coords">0, 0, 0</span></div>
-  <div><b>Blok:</b> <span id="blockName">Çim</span></div>
+  <div><b>Chunk:</b> <span id="chunkVal">0, 0</span></div>
+  <div><b>Seed:</b> <span id="seedVal">0</span></div>
+  <div><b>Seçili:</b> <span id="blockName">Çim</span></div>
 </div>
 
-<div id="versionTag">v0.1.0</div>
+<div id="versionTag">v0.1.1</div>
 
 <div id="statusBars">
   <div id="hearts">❤️❤️❤️❤️❤️</div>
@@ -90,10 +92,9 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.1';
-$('versionTag').textContent = APP_VERSION;
-
+const APP_VERSION = 'v0.1.2';
 function $(id){ return document.getElementById(id); }
+$('versionTag').textContent = APP_VERSION;
 
 /* ================= SES SİSTEMİ (Web Audio API) ================= */
 const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -108,7 +109,6 @@ function playSound(type){
     const ctx = getAudio();
     const t = ctx.currentTime;
     if(type === 'break'){
-      // Kırılma gürültüsü
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'sawtooth';
@@ -119,7 +119,6 @@ function playSound(type){
       osc.connect(gain); gain.connect(ctx.destination);
       osc.start(t); osc.stop(t + 0.12);
     } else if(type === 'place'){
-      // Yerleştirme tık sesi
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'triangle';
@@ -155,7 +154,6 @@ function makePixelTexture(fn){
   return { tex, canvas: cv };
 }
 
-// Renk yardımcıları
 function rgb(r, g, b){ return `rgb(${r},${g},${b})`; }
 function noise(val, spread){ return Math.min(255, Math.max(0, val + (Math.random() * spread * 2 - spread) | 0)); }
 
@@ -211,7 +209,7 @@ function initTextures(){
     }
   });
 
-  // 5. Kırıktaş (Cobblestone)
+  // 5. Kırıktaş
   TEXTURES.cobble = makePixelTexture(cx => {
     for(let y=0; y<16; y++){
       for(let x=0; x<16; x++){
@@ -248,7 +246,7 @@ function initTextures(){
     }
   });
 
-  // 8. Tahta (Planks)
+  // 8. Tahta
   TEXTURES.planks = makePixelTexture(cx => {
     for(let y=0; y<16; y++){
       for(let x=0; x<16; x++){
@@ -260,7 +258,7 @@ function initTextures(){
     }
   });
 
-  // 9. Yaprak (Leaves)
+  // 9. Yaprak
   TEXTURES.leaves = makePixelTexture(cx => {
     for(let y=0; y<16; y++){
       for(let x=0; x<16; x++){
@@ -271,7 +269,7 @@ function initTextures(){
     }
   });
 
-  // 10. Kum (Sand)
+  // 10. Kum
   TEXTURES.sand = makePixelTexture(cx => {
     for(let y=0; y<16; y++){
       for(let x=0; x<16; x++){
@@ -282,18 +280,17 @@ function initTextures(){
     }
   });
 
-  // 11. Cam (Glass)
+  // 11. Cam
   TEXTURES.glass = makePixelTexture(cx => {
     cx.fillStyle = 'rgba(210, 240, 255, 0.25)';
     cx.fillRect(0, 0, 16, 16);
     cx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    // Çerçeve ve parıltı
     cx.strokeRect(0.5, 0.5, 15, 15);
     cx.fillRect(2, 2, 3, 1);
     cx.fillRect(2, 3, 1, 2);
   });
 
-  // 12. Tuğla (Brick)
+  // 12. Tuğla
   TEXTURES.brick = makePixelTexture(cx => {
     for(let y=0; y<16; y++){
       for(let x=0; x<16; x++){
@@ -309,7 +306,7 @@ function initTextures(){
     }
   });
 
-  // 13. Elmas Cevheri (Diamond Ore)
+  // 13. Elmas
   TEXTURES.diamond_ore = makePixelTexture(cx => {
     for(let y=0; y<16; y++){
       for(let x=0; x<16; x++){
@@ -393,79 +390,238 @@ const BLOCKS = {
   ]}
 };
 
-// Malzeme havuzunu hazırla
 for(const k in BLOCKS){
   BLOCKS[k].mat = BLOCKS[k].getMats();
 }
 
-/* ================= DÜNYA VE VOXEL MOTORU ================= */
-const W_X = 32, W_Z = 32, W_Y = 24;
-const world = new Uint8Array(W_X * W_Z * W_Y);
-function getBlock(x, y, z){
-  if(x < 0 || x >= W_X || z < 0 || z >= W_Z || y < 0 || y >= W_Y) return 0;
-  return world[x + z * W_X + y * W_X * W_Z];
+/* ================= RASTGELE HARİTA TOHUMU (SEED) VE PROSEDÜREL GÜRÜLTÜ ================= */
+let SEED = Math.floor(Math.random() * 900000) + 100000;
+const urlParams = new URLSearchParams(window.location.search);
+if(urlParams.get('seed')) SEED = parseInt(urlParams.get('seed'));
+$('seedVal').textContent = SEED;
+
+function hash2D(x, z){
+  const n = Math.sin(x * 12.9898 + z * 78.233 + (SEED % 9999) * 0.137) * 43758.5453;
+  return n - Math.floor(n);
 }
-function setBlock(x, y, z, id){
-  if(x < 0 || x >= W_X || z < 0 || z >= W_Z || y < 0 || y >= W_Y) return;
-  world[x + z * W_X + y * W_X * W_Z] = id;
+function smoothNoise(x, z){
+  const ix = Math.floor(x), iz = Math.floor(z);
+  const fx = x - ix, fz = z - iz;
+  const sx = fx * fx * (3 - 2 * fx);
+  const sz = fz * fz * (3 - 2 * fz);
+  const v00 = hash2D(ix, iz);
+  const v10 = hash2D(ix + 1, iz);
+  const v01 = hash2D(ix, iz + 1);
+  const v11 = hash2D(ix + 1, iz + 1);
+  const v0 = v00 + sx * (v10 - v00);
+  const v1 = v01 + sx * (v11 - v01);
+  return v0 + sz * (v1 - v0);
+}
+function terrainHeight(gx, gz){
+  const n1 = smoothNoise(gx * 0.025, gz * 0.025) * 11;
+  const n2 = smoothNoise(gx * 0.07, gz * 0.07) * 4.5;
+  const n3 = smoothNoise(gx * 0.18, gz * 0.18) * 1.5;
+  return Math.floor(10 + n1 + n2 + n3);
 }
 
-// Arazi üretimi
-function generateWorld(){
-  for(let x=0; x<W_X; x++){
-    for(let z=0; z<W_Z; z++){
-      // Yükseklik hesabı (dalgalı tepeler)
-      const h = Math.floor(8 + Math.sin(x * 0.35) * 2.5 + Math.cos(z * 0.35) * 2.5);
-      for(let y=0; y<=h; y++){
-        if(y === h){
-          setBlock(x, y, z, 1); // Çim
+/* ================= SONSUZ CHUNK SİSTEMİ ================= */
+const CHUNK_SIZE = 16, CHUNK_Y = 32;
+const RENDER_DIST = 2; // 5x5 chunk alanı
+const chunks = new Map();
+const chunkGroup = new THREE.Group();
+
+function createChunk(cx, cz){
+  const key = `${cx},${cz}`;
+  const blocks = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * CHUNK_Y);
+  const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false };
+  chunkGroup.add(ch.group);
+
+  for(let lx = 0; lx < CHUNK_SIZE; lx++){
+    for(let lz = 0; lz < CHUNK_SIZE; lz++){
+      const gx = cx * CHUNK_SIZE + lx;
+      const gz = cz * CHUNK_SIZE + lz;
+      const h = Math.max(3, Math.min(CHUNK_Y - 7, terrainHeight(gx, gz)));
+
+      for(let y = 0; y <= h; y++){
+        const idx = lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
+        if(y === 0){
+          blocks[idx] = 3;
+        } else if(y === h){
+          blocks[idx] = (h <= 6) ? 8 : 1;
         } else if(y >= h - 2){
-          setBlock(x, y, z, 2); // Toprak
+          blocks[idx] = (h <= 6) ? 8 : 2;
         } else {
-          // Taş veya Elmas
-          if(y <= 3 && Math.random() < 0.08){
-            setBlock(x, y, z, 11); // Elmas cevheri
+          const oreRand = hash2D(gx * 3.7 + y * 1.3, gz * 2.9 + y * 7.1);
+          if(y <= 4 && oreRand > 0.94){
+            blocks[idx] = 11;
+          } else if(oreRand > 0.95){
+            blocks[idx] = 10;
           } else {
-            setBlock(x, y, z, 3); // Taş
+            blocks[idx] = 3;
+          }
+        }
+      }
+
+      // Ağaçlar
+      const treeRand = hash2D(gx * 5.1, gz * 7.7);
+      if(h > 6 && treeRand > 0.965 && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13){
+        const trunkH = 4 + (treeRand > 0.985 ? 1 : 0);
+        for(let ty = 1; ty <= trunkH; ty++){
+          if(h + ty < CHUNK_Y){
+            blocks[lx + lz * CHUNK_SIZE + (h + ty) * CHUNK_SIZE * CHUNK_SIZE] = 5;
+          }
+        }
+        const topY = h + trunkH;
+        for(let ox = -2; ox <= 2; ox++){
+          for(let oz = -2; oz <= 2; oz++){
+            for(let oy = topY - 1; oy <= topY; oy++){
+              if(Math.abs(ox) === 2 && Math.abs(oz) === 2 && hash2D(gx + ox, gz + oz) < 0.45) continue;
+              const nlx = lx + ox, nlz = lz + oz;
+              if(nlx >= 0 && nlx < CHUNK_SIZE && nlz >= 0 && nlz < CHUNK_SIZE && oy < CHUNK_Y){
+                const lidx = nlx + nlz * CHUNK_SIZE + oy * CHUNK_SIZE * CHUNK_SIZE;
+                if(blocks[lidx] === 0) blocks[lidx] = 7;
+              }
+            }
+          }
+        }
+        if(topY + 1 < CHUNK_Y){
+          const lidx = lx + lz * CHUNK_SIZE + (topY + 1) * CHUNK_SIZE * CHUNK_SIZE;
+          if(blocks[lidx] === 0) blocks[lidx] = 7;
+        }
+      }
+    }
+  }
+
+  return ch;
+}
+
+function getChunk(cx, cz){
+  const key = `${cx},${cz}`;
+  let ch = chunks.get(key);
+  if(!ch){
+    ch = createChunk(cx, cz);
+    chunks.set(key, ch);
+  }
+  return ch;
+}
+
+function getBlock(x, y, z){
+  if(y < 0 || y >= CHUNK_Y) return 0;
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cz = Math.floor(z / CHUNK_SIZE);
+  const ch = chunks.get(`${cx},${cz}`);
+  if(!ch) return 0;
+  const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  return ch.blocks[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE];
+}
+
+const sharedBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+const dummy = new THREE.Object3D();
+
+function rebuildChunkMesh(ch){
+  while(ch.group.children.length > 0){
+    const m = ch.group.children[0];
+    ch.group.remove(m);
+    if(m.geometry) m.geometry.dispose();
+  }
+
+  const counts = {};
+  for(let lx = 0; lx < CHUNK_SIZE; lx++){
+    for(let lz = 0; lz < CHUNK_SIZE; lz++){
+      const gx = ch.cx * CHUNK_SIZE + lx;
+      const gz = ch.cz * CHUNK_SIZE + lz;
+      for(let y = 0; y < CHUNK_Y; y++){
+        const id = ch.blocks[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE];
+        if(id > 0){
+          const exposed = (
+            getBlock(gx+1, y, gz) === 0 || getBlock(gx-1, y, gz) === 0 ||
+            getBlock(gx, y+1, gz) === 0 || getBlock(gx, y-1, gz) === 0 ||
+            getBlock(gx, y, gz+1) === 0 || getBlock(gx, y, gz-1) === 0 ||
+            getBlock(gx+1, y, gz) === 9 || getBlock(gx-1, y, gz) === 9
+          );
+          if(exposed){
+            counts[id] = (counts[id] || 0) + 1;
           }
         }
       }
     }
   }
 
-  // Ağaçlar yerleştir
-  for(let i=0; i<8; i++){
-    const tx = Math.floor(4 + Math.random() * (W_X - 8));
-    const tz = Math.floor(4 + Math.random() * (W_Z - 8));
-    let groundY = 0;
-    for(let y=W_Y-1; y>=0; y--){
-      if(getBlock(tx, y, tz) === 1){ groundY = y; break; }
+  const meshes = {};
+  const indices = {};
+  for(const id in counts){
+    const im = new THREE.InstancedMesh(sharedBoxGeo, BLOCKS[id].mat, counts[id]);
+    ch.group.add(im);
+    meshes[id] = im;
+    indices[id] = 0;
+  }
+
+  for(let lx = 0; lx < CHUNK_SIZE; lx++){
+    for(let lz = 0; lz < CHUNK_SIZE; lz++){
+      const gx = ch.cx * CHUNK_SIZE + lx;
+      const gz = ch.cz * CHUNK_SIZE + lz;
+      for(let y = 0; y < CHUNK_Y; y++){
+        const id = ch.blocks[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE];
+        if(id > 0 && meshes[id]){
+          const exposed = (
+            getBlock(gx+1, y, gz) === 0 || getBlock(gx-1, y, gz) === 0 ||
+            getBlock(gx, y+1, gz) === 0 || getBlock(gx, y-1, gz) === 0 ||
+            getBlock(gx, y, gz+1) === 0 || getBlock(gx, y, gz-1) === 0 ||
+            getBlock(gx+1, y, gz) === 9 || getBlock(gx-1, y, gz) === 9
+          );
+          if(exposed){
+            dummy.position.set(gx + 0.5, y + 0.5, gz + 0.5);
+            dummy.updateMatrix();
+            meshes[id].setMatrixAt(indices[id]++, dummy.matrix);
+          }
+        }
+      }
     }
-    if(groundY > 0 && groundY < W_Y - 7){
-      // Gövde
-      const trunkH = 4 + (Math.random() < 0.5 ? 1 : 0);
-      for(let y = 1; y <= trunkH; y++){
-        setBlock(tx, groundY + y, tz, 5); // Odun
+  }
+
+  for(const id in meshes){
+    meshes[id].instanceMatrix.needsUpdate = true;
+  }
+  ch.meshBuilt = true;
+}
+
+function setBlock(x, y, z, id){
+  if(y < 0 || y >= CHUNK_Y) return;
+  const cx = Math.floor(x / CHUNK_SIZE);
+  const cz = Math.floor(z / CHUNK_SIZE);
+  const ch = getChunk(cx, cz);
+  const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
+  ch.blocks[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
+  rebuildChunkMesh(ch);
+
+  if(lx === 0) { const nb = chunks.get(`${cx-1},${cz}`); if(nb) rebuildChunkMesh(nb); }
+  if(lx === CHUNK_SIZE-1) { const nb = chunks.get(`${cx+1},${cz}`); if(nb) rebuildChunkMesh(nb); }
+  if(lz === 0) { const nb = chunks.get(`${cx},${cz-1}`); if(nb) rebuildChunkMesh(nb); }
+  if(lz === CHUNK_SIZE-1) { const nb = chunks.get(`${cx},${cz+1}`); if(nb) rebuildChunkMesh(nb); }
+}
+
+function updateChunks(){
+  const pcx = Math.floor(player.x / CHUNK_SIZE);
+  const pcz = Math.floor(player.z / CHUNK_SIZE);
+  $('chunkVal').textContent = `${pcx}, ${pcz}`;
+
+  for(let dx = -RENDER_DIST; dx <= RENDER_DIST; dx++){
+    for(let dz = -RENDER_DIST; dz <= RENDER_DIST; dz++){
+      const cx = pcx + dx, cz = pcz + dz;
+      const ch = getChunk(cx, cz);
+      if(!ch.meshBuilt){
+        rebuildChunkMesh(ch);
       }
-      // Yapraklar
-      const topY = groundY + trunkH;
-      for(let lx = -2; lx <= 2; lx++){
-        for(let lz = -2; lz <= 2; lz++){
-          for(let ly = topY - 1; ly <= topY; ly++){
-            if(Math.abs(lx) === 2 && Math.abs(lz) === 2 && Math.random() < 0.5) continue;
-            if(getBlock(tx + lx, ly, tz + lz) === 0){
-              setBlock(tx + lx, ly, tz + lz, 7); // Yaprak
-            }
-          }
-        }
-      }
-      for(let lx = -1; lx <= 1; lx++){
-        for(let lz = -1; lz <= 1; lz++){
-          if(getBlock(tx + lx, topY + 1, tz + lz) === 0){
-            setBlock(tx + lx, topY + 1, tz + lz, 7);
-          }
-        }
-      }
+      ch.group.visible = true;
+    }
+  }
+
+  for(const [key, ch] of chunks.entries()){
+    const dist = Math.max(Math.abs(ch.cx - pcx), Math.abs(ch.cz - pcz));
+    if(dist > RENDER_DIST + 1){
+      ch.group.visible = false;
     }
   }
 }
@@ -473,9 +629,10 @@ function generateWorld(){
 /* ================= THREE.JS SAHNE KURULUMU ================= */
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x78a7ff);
-scene.fog = new THREE.FogExp2(0x78a7ff, 0.025);
+scene.fog = new THREE.FogExp2(0x78a7ff, 0.022);
+scene.add(chunkGroup);
 
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 120);
 const renderer = new THREE.WebGLRenderer({canvas: $('c'), antialias: false, powerPreference: 'high-performance'});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -487,101 +644,33 @@ const sunLight = new THREE.DirectionalLight(0xffffff, 0.75);
 sunLight.position.set(20, 40, 20);
 scene.add(sunLight);
 
-// Güneş ve Ay
-const sunGeo = new THREE.PlaneGeometry(6, 6);
+const sunGeo = new THREE.PlaneGeometry(8, 8);
 const sunMat = new THREE.MeshBasicMaterial({color: 0xffff88, side: THREE.DoubleSide});
 const sunMesh = new THREE.Mesh(sunGeo, sunMat);
 scene.add(sunMesh);
 
-// Blok hedefleme çerçevesi (Highlight Wireframe)
 const boxGeo = new THREE.BoxGeometry(1.005, 1.005, 1.005);
 const wireMat = new THREE.MeshBasicMaterial({color: 0x000000, wireframe: true, wireframeLinewidth: 2});
 const targetBox = new THREE.Mesh(boxGeo, wireMat);
 targetBox.visible = false;
 scene.add(targetBox);
 
-// Voxel Chunk Rendering (InstancedMesh)
-const blockInstMeshes = {};
-const sharedBoxGeo = new THREE.BoxGeometry(1, 1, 1);
-const dummy = new THREE.Object3D();
-
-function rebuildWorldMeshes(){
-  // Önceki instanceları temizle
-  for(const k in blockInstMeshes){
-    scene.remove(blockInstMeshes[k]);
-    blockInstMeshes[k].geometry.dispose();
-  }
-
-  // Her blok tipi için görünür blok sayılarını hesapla
-  const counts = {};
-  for(let x=0; x<W_X; x++){
-    for(let y=0; y<W_Y; y++){
-      for(let z=0; z<W_Z; z++){
-        const id = getBlock(x, y, z);
-        if(id > 0){
-          // Yalnızca en az bir yüzü boşluğa/yarı saydam bloğa bakanları çiz
-          const exposed = (
-            getBlock(x+1, y, z) === 0 || getBlock(x-1, y, z) === 0 ||
-            getBlock(x, y+1, z) === 0 || getBlock(x, y-1, z) === 0 ||
-            getBlock(x, y, z+1) === 0 || getBlock(x, y, z-1) === 0 ||
-            getBlock(x+1, y, z) === 9 || getBlock(x-1, y, z) === 9
-          );
-          if(exposed){
-            counts[id] = (counts[id] || 0) + 1;
-          }
-        }
-      }
-    }
-  }
-
-  // InstancedMesh nesnelerini oluştur
-  const indices = {};
-  for(const id in counts){
-    const mesh = new THREE.InstancedMesh(sharedBoxGeo, BLOCKS[id].mat, counts[id]);
-    scene.add(mesh);
-    blockInstMeshes[id] = mesh;
-    indices[id] = 0;
-  }
-
-  // Matrisleri doldur
-  for(let x=0; x<W_X; x++){
-    for(let y=0; y<W_Y; y++){
-      for(let z=0; z<W_Z; z++){
-        const id = getBlock(x, y, z);
-        if(id > 0){
-          const exposed = (
-            getBlock(x+1, y, z) === 0 || getBlock(x-1, y, z) === 0 ||
-            getBlock(x, y+1, z) === 0 || getBlock(x, y-1, z) === 0 ||
-            getBlock(x, y, z+1) === 0 || getBlock(x, y, z-1) === 0 ||
-            getBlock(x+1, y, z) === 9 || getBlock(x-1, y, z) === 9
-          );
-          if(exposed && blockInstMeshes[id]){
-            dummy.position.set(x + 0.5, y + 0.5, z + 0.5);
-            dummy.updateMatrix();
-            blockInstMeshes[id].setMatrixAt(indices[id]++, dummy.matrix);
-          }
-        }
-      }
-    }
-  }
-
-  for(const id in blockInstMeshes){
-    blockInstMeshes[id].instanceMatrix.needsUpdate = true;
-  }
-}
-
-generateWorld();
-rebuildWorldMeshes();
-
 /* ================= OYUNCU VE FİZİK ================= */
 const player = {
-  x: 16.5, y: 15.0, z: 16.5,
+  x: 8.5, y: 20.0, z: 8.5,
   vx: 0, vy: 0, vz: 0,
   pitch: 0, yaw: 0,
   onGround: false,
   radius: 0.3,
   height: 1.7
 };
+
+function initPlayerPosition(){
+  updateChunks();
+  const sh = terrainHeight(8, 8);
+  player.y = sh + 2.5;
+}
+initPlayerPosition();
 
 function collide(px, py, pz){
   const r = player.radius;
@@ -609,7 +698,6 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
 
-// Masaüstü Pointer Lock
 let isLocked = false;
 $('c').addEventListener('click', () => {
   if(!isLocked && !isTouchDevice){
@@ -626,7 +714,6 @@ document.addEventListener('mousemove', e => {
   player.pitch = Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, player.pitch));
 });
 
-// Fare tıklamalarıyla kırma ve koyma
 window.addEventListener('mousedown', e => {
   if(!isLocked) return;
   if(e.button === 0) mineTarget();
@@ -634,7 +721,6 @@ window.addEventListener('mousedown', e => {
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
 
-// Mobil Dokunmatik Kontroller
 let isTouchDevice = false;
 let touchLookId = null, lastTouchX = 0, lastTouchY = 0;
 
@@ -642,7 +728,6 @@ window.addEventListener('touchstart', e => {
   isTouchDevice = true;
   for(let i=0; i<e.changedTouches.length; i++){
     const t = e.changedTouches[i];
-    // Ekranın sağ yarısı bakış yönü
     if(t.clientX > window.innerWidth * 0.4 && touchLookId === null){
       touchLookId = t.identifier;
       lastTouchX = t.clientX;
@@ -674,7 +759,6 @@ window.addEventListener('touchend', e => {
   }
 });
 
-// Mobil D-Pad Tuşları
 function bindTouchKey(id, code){
   const el = $(id);
   el.addEventListener('touchstart', e => { e.preventDefault(); keys[code] = true; });
@@ -742,7 +826,7 @@ function updateRaycast(){
     const cz = player.z + dir.z * d;
 
     const bx = Math.floor(cx), by = Math.floor(cy), bz = Math.floor(cz);
-    if(bx < 0 || bx >= W_X || bz < 0 || bz >= W_Z || by < 0 || by >= W_Y) continue;
+    if(by < 0 || by >= CHUNK_Y) continue;
 
     if(getBlock(bx, by, bz) > 0){
       targetInfo = {
@@ -763,13 +847,11 @@ function mineTarget(){
   const { x, y, z } = targetInfo.hit;
   setBlock(x, y, z, 0);
   playSound('break');
-  rebuildWorldMeshes();
 }
 
 function placeTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.place;
-  // Oyuncunun içinde olduğu yere blok koymayı engelle
   const minX = player.x - player.radius, maxX = player.x + player.radius;
   const minZ = player.z - player.radius, maxZ = player.z + player.radius;
   const minY = player.y, maxY = player.y + player.height;
@@ -781,19 +863,17 @@ function placeTarget(){
   const id = hotbarSlots[activeSlotIdx];
   setBlock(x, y, z, id);
   playSound('place');
-  rebuildWorldMeshes();
 }
 
 /* ================= OYUN DÖNGÜSÜ ================= */
 let lastT = performance.now(), frameCount = 0, lastFpsT = performance.now();
-let dayTime = 0;
+let dayTime = 0, chunkTimer = 0;
 
 function animate(now){
   requestAnimationFrame(animate);
   const dt = Math.min((now - lastT) / 1000, 0.1);
   lastT = now;
 
-  // FPS Hesabı
   frameCount++;
   if(now - lastFpsT >= 500){
     $('fps').textContent = Math.round((frameCount * 1000) / (now - lastFpsT));
@@ -801,30 +881,33 @@ function animate(now){
     lastFpsT = now;
   }
 
-  // Gün / Gece döngüsü
-  dayTime += dt * 0.05;
+  chunkTimer += dt;
+  if(chunkTimer > 0.3){
+    chunkTimer = 0;
+    updateChunks();
+  }
+
+  dayTime += dt * 0.04;
   const sunAngle = dayTime;
-  sunMesh.position.set(player.x + Math.cos(sunAngle) * 40, player.y + Math.sin(sunAngle) * 40, player.z + 10);
+  sunMesh.position.set(player.x + Math.cos(sunAngle) * 45, player.y + Math.sin(sunAngle) * 45, player.z + 10);
   sunMesh.lookAt(player.x, player.y, player.z);
   sunLight.position.copy(sunMesh.position);
 
-  // Gökyüzü rengi
   const sunH = Math.sin(sunAngle);
   if(sunH > 0.2){
-    scene.background.setHex(0x78a7ff); // Gündüz açık mavi
+    scene.background.setHex(0x78a7ff);
     scene.fog.color.setHex(0x78a7ff);
     ambLight.intensity = 0.65;
   } else if(sunH > -0.2){
-    scene.background.setHex(0xd97736); // Gün batımı
+    scene.background.setHex(0xd97736);
     scene.fog.color.setHex(0xd97736);
     ambLight.intensity = 0.45;
   } else {
-    scene.background.setHex(0x0a0e1a); // Gece lacivert
+    scene.background.setHex(0x0a0e1a);
     scene.fog.color.setHex(0x0a0e1a);
     ambLight.intensity = 0.25;
   }
 
-  // Hareket girişleri
   const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
   const strafe = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
   const speed = 5.2;
@@ -839,27 +922,23 @@ function animate(now){
     moveZ = ((fz + sz) / len) * speed;
   }
 
-  // Yerçekimi ve Zıplama
   if(keys['Space'] && player.onGround){
     player.vy = 7.5;
     player.onGround = false;
     playSound('jump');
   }
-  player.vy -= 22 * dt; // Yerçekimi ivmesi
+  player.vy -= 22 * dt;
 
-  // X ekseni çarpışma
   const nextX = player.x + moveX * dt;
   if(!collide(nextX, player.y, player.z)){
     player.x = nextX;
   }
 
-  // Z ekseni çarpışma
   const nextZ = player.z + moveZ * dt;
   if(!collide(player.x, player.y, nextZ)){
     player.z = nextZ;
   }
 
-  // Y ekseni çarpışma (Düşme / Zemin kontrolü)
   const nextY = player.y + player.vy * dt;
   if(collide(player.x, nextY, player.z)){
     if(player.vy < 0){
@@ -874,19 +953,17 @@ function animate(now){
     player.onGround = false;
   }
 
-  // Düşme sınırı (Boşluğa düşerse yukarı ışınla)
-  if(player.y < -5){
-    player.x = 16.5; player.y = 18; player.z = 16.5;
+  if(player.y < -10){
+    const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
+    player.y = Math.max(h + 3, 15);
     player.vy = 0;
   }
 
-  // Kamera pozisyonu ve rotasyonu
   camera.position.set(player.x, player.y + player.height * 0.85, player.z);
   camera.rotation.order = 'YXZ';
   camera.rotation.y = player.yaw;
   camera.rotation.x = player.pitch;
 
-  // Koordinat HUD güncelle
   $('coords').textContent = `${player.x.toFixed(1)}, ${player.y.toFixed(1)}, ${player.z.toFixed(1)}`;
 
   updateRaycast();
@@ -894,7 +971,6 @@ function animate(now){
 }
 requestAnimationFrame(animate);
 
-// Pencere boyutu değişimi
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
