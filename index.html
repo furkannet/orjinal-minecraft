@@ -130,7 +130,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.6';
+const APP_VERSION = 'v0.1.7';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -299,13 +299,22 @@ function initTextures(){
       cx.fillRect(x, y, 1, 1);
     }
   });
-  TEXTURES.diamond_ore = makePixelTexture(cx => {
+  function drawMinecraftOre(cx, dark, main, light){
     for(let y=0; y<16; y++) for(let x=0; x<16; x++){
-      const isGem = ((x===3&&y===4)||(x===4&&y===4)||(x===4&&y===5)||(x===10&&y===9)||(x===11&&y===9)||(x===11&&y===10)||(x===7&&y===12));
-      cx.fillStyle = isGem ? '#22ffff' : rgb(noise(128, 20), noise(128, 20), noise(128, 20));
-      cx.fillRect(x, y, 1, 1);
+      const gr = noise(128, 20); cx.fillStyle = rgb(gr, gr, gr); cx.fillRect(x, y, 1, 1);
     }
-  });
+    const p = [
+      [3,2,2],[4,2,1],[5,2,0],[2,3,2],[3,3,1],[4,3,1],[5,3,0],[2,4,0],[3,4,1],[4,4,0],
+      [10,3,2],[11,3,1],[12,3,0],[9,4,2],[10,4,1],[11,4,1],[12,4,0],[10,5,1],[11,5,0],
+      [6,7,2],[7,7,1],[5,8,2],[6,8,1],[7,8,1],[8,8,0],[6,9,1],[7,9,0],[8,9,0],
+      [2,11,2],[3,11,1],[4,11,0],[1,12,2],[2,12,1],[3,12,1],[4,12,0],[2,13,0],[3,13,0],
+      [11,10,2],[12,10,1],[10,11,2],[11,11,1],[12,11,1],[13,11,0],[11,12,1],[12,12,0],[13,12,0]
+    ];
+    const colors = [dark, main, light];
+    for(const [x, y, c] of p){ cx.fillStyle = colors[c]; cx.fillRect(x, y, 1, 1); }
+  }
+
+  TEXTURES.diamond_ore = makePixelTexture(cx => drawMinecraftOre(cx, '#198f99', '#4beded', '#d0ffff'));
   TEXTURES.tnt_side = makePixelTexture(cx => {
     for(let y=0; y<16; y++) for(let x=0; x<16; x++){
       cx.fillStyle = (y >= 5 && y <= 10) ? '#fff' : rgb(noise(210, 20), 20, 20);
@@ -325,30 +334,12 @@ function initTextures(){
       const b = noise(220, 25); cx.fillStyle = rgb(20, (b*0.5)|0, b); cx.fillRect(x, y, 1, 1);
     }
   });
-  // Kömür cevheri
-  TEXTURES.coal_ore = makePixelTexture(cx => {
-    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
-      const isC = ((x%4===0 && y%3===0) || (x===6&&y===7));
-      cx.fillStyle = isC ? '#222' : rgb(noise(128, 20), noise(128, 20), noise(128, 20));
-      cx.fillRect(x, y, 1, 1);
-    }
-  });
+  // Kömür cevheri (Minecraft tarzı belirgin mineral kümeleri)
+  TEXTURES.coal_ore = makePixelTexture(cx => drawMinecraftOre(cx, '#111111', '#282828', '#484848'));
   // Demir cevheri
-  TEXTURES.iron_ore = makePixelTexture(cx => {
-    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
-      const isI = ((x===3&&y===5) || (x===10&&y===11) || (x===7&&y===8));
-      cx.fillStyle = isI ? '#d4a373' : rgb(noise(128, 20), noise(128, 20), noise(128, 20));
-      cx.fillRect(x, y, 1, 1);
-    }
-  });
+  TEXTURES.iron_ore = makePixelTexture(cx => drawMinecraftOre(cx, '#8a654d', '#d8af93', '#f2ded0'));
   // Altın cevheri
-  TEXTURES.gold_ore = makePixelTexture(cx => {
-    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
-      const isG = ((x===4&&y===4) || (x===9&&y===10) || (x===5&&y===12));
-      cx.fillStyle = isG ? '#ffd700' : rgb(noise(128, 20), noise(128, 20), noise(128, 20));
-      cx.fillRect(x, y, 1, 1);
-    }
-  });
+  TEXTURES.gold_ore = makePixelTexture(cx => drawMinecraftOre(cx, '#967415', '#f5c62c', '#fff48d'));
   // Kitaplık (Bookshelf)
   TEXTURES.bookshelf = makePixelTexture(cx => {
     for(let y=0; y<16; y++) for(let x=0; x<16; x++){
@@ -623,6 +614,23 @@ const chunkGroup = new THREE.Group();
 
 function buildVillageHouse(blocks, hx, hz, baseY, blacksmith = false){
   const roofId = blacksmith ? 20 : 6; // Demirci: taş tuğla çatı
+
+  // Evin etrafındaki tepeleri ve blokları temizle (ev bloklarla birleşik veya gömülü kalmasın)
+  for(let x = -1; x <= 5; x++){
+    for(let z = -1; z <= 5; z++){
+      const gx = hx + x, gz = hz + z;
+      if(gx < 0 || gx >= CHUNK_SIZE || gz < 0 || gz >= CHUNK_SIZE) continue;
+      // Evin üstünü ve çevresini temizle (hava yap)
+      for(let y = baseY + 1; y <= baseY + 6; y++){
+        if(y < CHUNK_Y) blocks[gx + gz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = 0;
+      }
+      // Evin ve etrafının altını sağlam kırıktaş zeminle doldur (boşluk veya yamuk zemin kalmasın)
+      for(let y = baseY - 2; y <= baseY; y++){
+        if(y >= 0) blocks[gx + gz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = 4;
+      }
+    }
+  }
+
   // 5x5 Köy Evi
   for(let x = 0; x < 5; x++){
     for(let z = 0; z < 5; z++){
@@ -715,8 +723,9 @@ function createChunk(cx, cz){
   const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false };
   chunkGroup.add(ch.group);
 
-  // Köy var mı kontrolü (Düzlük chunklarda %22 şans)
-  const isVillageChunk = (hash2D(cx * 17.3, cz * 19.7) > 0.93); // Köyler nadir
+  // Köy kontrolü: Köyler genellikle ağaçsız açık düzlük alanlarda (plains) kurulur
+  const chunkBiome = biomeAt(cx * CHUNK_SIZE + 7, cz * CHUNK_SIZE + 7);
+  const isVillageChunk = (chunkBiome === 'plains' && hash2D(cx * 17.3, cz * 19.7) > 0.84);
   let houseBuilt = false;
 
   for(let lx = 0; lx < CHUNK_SIZE; lx++){
@@ -724,13 +733,14 @@ function createChunk(cx, cz){
       const gx = cx * CHUNK_SIZE + lx;
       const gz = cz * CHUNK_SIZE + lz;
       let h = Math.max(2, Math.min(CHUNK_Y - 7, terrainHeight(gx, gz)));
-      // Biyomlar: okyanus (alçak, su dolu), çöl (kum, ağaçsız), karlı (kar), orman (sık ağaç), ova
+      // Biyomlar: okyanus (alçak, su dolu), çöl (kum, ağaçsız), karlı (kar), orman (sık ağaç), ova (ağaçsız düzlük)
       const bOcean = smoothNoise(gx * 0.02 + 5000, gz * 0.02 + 5000);
       const bTemp = smoothNoise(gx * 0.012 + 1500, gz * 0.012 + 1500);
       const bHum = smoothNoise(gx * 0.012 + 3100, gz * 0.012 - 700);
       const biome = (bOcean > 0.7) ? 'ocean' : (bTemp > 0.64 && bHum < 0.42) ? 'desert' : (bTemp < 0.36) ? 'snow' : (bHum > 0.62) ? 'forest' : 'plains';
-      const canTree = biome === 'plains' || biome === 'forest';
-      const treeThresh = biome === 'forest' ? 0.93 : 0.965;
+      // Ormanlar ağaçlıdır; ova/düzlükler ağaçsız ve ferah kalır
+      const canTree = !isVillageChunk && (biome === 'forest' || (biome === 'plains' && hash2D(gx * 1.3, gz * 1.7) > 0.95));
+      const treeThresh = biome === 'forest' ? 0.92 : 0.99;
       // Göl: alçak arazide, gürültü değeri yüksekse su ile dolar
       const inLake = h > SEA_LEVEL && h <= LAKE_LEVEL && smoothNoise(gx * 0.015 + 300, gz * 0.015 + 300) > 0.66;
 
@@ -1038,7 +1048,36 @@ function createMobMesh(type){
     legL.position.set(-0.12, 0.225, 0);
     const legR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), boneMat);
     legR.position.set(0.12, 0.225, 0);
-    g.add(head, eyeL, eyeR, mouth, body, armL, armR, legL, legR);
+
+    // İskeletin elindeki yay ve ok
+    const bowWoodMat = new THREE.MeshLambertMaterial({color: 0x8b5a2b});
+    const stringMat = new THREE.MeshBasicMaterial({color: 0xf5f5f5});
+    const arrowMat = new THREE.MeshLambertMaterial({color: 0xc49a45});
+    const arrowHeadMat = new THREE.MeshLambertMaterial({color: 0x555555});
+    const fletchMat = new THREE.MeshBasicMaterial({color: 0xeeeeee});
+
+    const bowG = new THREE.Group();
+    const bowStaff = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.46, 0.04), bowWoodMat);
+    const bowTipT = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.08), bowWoodMat);
+    bowTipT.position.set(0, 0.25, -0.04);
+    const bowTipB = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.08), bowWoodMat);
+    bowTipB.position.set(0, -0.25, -0.04);
+    const bowString = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.54, 0.02), stringMat);
+    bowString.position.set(0, 0, -0.07);
+
+    // Ok
+    const arrowShaft = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.52), arrowMat);
+    arrowShaft.position.set(0, 0, 0.12);
+    const arrowHead = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.08), arrowHeadMat);
+    arrowHead.position.set(0, 0, 0.38);
+    const arrowFletch = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), fletchMat);
+    arrowFletch.position.set(0, 0, -0.12);
+
+    bowG.add(bowStaff, bowTipT, bowTipB, bowString, arrowShaft, arrowHead, arrowFletch);
+    bowG.position.set(0.2, 0.95, 0.48);
+    bowG.rotation.y = -0.15;
+
+    g.add(head, eyeL, eyeR, mouth, body, armL, armR, legL, legR, bowG);
   } else if(type === 'sheep' || type === 'cow'){
     // Hayvan: 4 ayaklı gövde
     const color = (type === 'sheep') ? 0xf0f0f0 : 0x7a431d;
