@@ -24,8 +24,18 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 #topRight{position:fixed;top:8px;right:8px;display:flex;gap:6px;z-index:12}
 .hudBtn{font-family:inherit;font-size:11px;font-weight:700;background:var(--panel);color:var(--ink);border:1px solid var(--line);padding:5px 9px;border-radius:7px;cursor:pointer;backdrop-filter:blur(4px);pointer-events:auto}
 .hudBtn:active{transform:scale(.95)}
+#menuBtn{background:#2d333b;border-color:#5a626e;color:#fff}
 #modeBtn{color:var(--mc-gold);border-color:var(--mc-gold)}
 #invToggleBtn{background:#1e3a52;border-color:var(--mc-blue);color:#fff}
+
+/* Pause / ESC Ana Menü */
+#pauseModal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:35;backdrop-filter:blur(4px)}
+#pauseCard{background:#26262b;border:3px solid #111;box-shadow:inset 2px 2px 0 #555,inset -2px -2px 0 #181818,0 12px 32px rgba(0,0,0,.8);border-radius:6px;width:min(360px,90vw);padding:18px;text-align:center}
+#pauseCard h2{margin:0 0 14px;color:#fff;font-size:17px;text-shadow:2px 2px 0 #000;letter-spacing:1px}
+.mcMenuBtnGroup{display:flex;flex-direction:column;gap:8px}
+.mcMenuBtn{background:#4a4a52;color:#fff;border:2px solid #111;box-shadow:inset 2px 2px 0 #777,inset -2px -2px 0 #282828;font-family:inherit;font-weight:700;font-size:13px;padding:9px 12px;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:6px;text-shadow:1px 1px 0 #000;user-select:none;transition:background .1s;border-radius:4px}
+.mcMenuBtn:hover{background:#5c5c66}
+.mcMenuBtn:active{transform:translateY(1px);box-shadow:inset -2px -2px 0 #777,inset 2px 2px 0 #282828}
 
 /* Hasar kırmızı flaşı */
 #hurtFlash{position:fixed;inset:0;background:rgba(255,0,0,.35);opacity:0;pointer-events:none;transition:opacity .15s;z-index:9}
@@ -85,6 +95,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 </div>
 
 <div id="topRight">
+  <button id="menuBtn" class="hudBtn">⚙️ Menü (ESC)</button>
   <button id="modeBtn" class="hudBtn">🎮 Mod (M)</button>
   <button id="invToggleBtn" class="hudBtn">🎒 Envanter (X)</button>
 </div>
@@ -114,6 +125,20 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   </div>
 </div>
 
+<!-- ESC / Ana Menü -->
+<div id="pauseModal">
+  <div id="pauseCard">
+    <h2>🎮 Oyun Menüsü</h2>
+    <div class="mcMenuBtnGroup">
+      <button id="btnResume" class="mcMenuBtn" onclick="togglePauseMenu(false)">▶ Oyuna Dön</button>
+      <button id="btnMenuMode" class="mcMenuBtn" onclick="toggleGameMode()">🎮 Oyun Modu: <span id="pauseModeSpan" style="color:var(--mc-gold)">Hayatta Kalma</span></button>
+      <button id="btnKeepInv" class="mcMenuBtn" onclick="toggleKeepInv()">🛡️ Envanteri Koru: <span id="pauseKeepInvSpan" style="color:#4ade80">Açık</span></button>
+      <button id="btnRespawn" class="mcMenuBtn" onclick="respawnPlayer();togglePauseMenu(false)">🔄 Yeniden Doğ (Respawn)</button>
+      <button id="btnSave" class="mcMenuBtn" onclick="writeSave();toast('💾 Oyun başarıyla kaydedildi!')">💾 Dünyayı Kaydet</button>
+    </div>
+  </div>
+</div>
+
 <!-- Envanter Penceresi -->
 <div id="invModal">
   <div id="invCard">
@@ -130,7 +155,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.7';
+const APP_VERSION = 'v0.1.8';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -544,16 +569,54 @@ for(const k in BLOCKS){
   BLOCKS[k].mat = BLOCKS[k].getMats();
 }
 
-/* ================= OYUN MODU SİSTEMİ ================= */
+/* ================= OYUN MODU VE AYARLAR ================= */
 let gameMode = 'survival'; // 'survival' veya 'creative'
+let keepInventory = true;  // Ölünce envanteri koruma
+let isPaused = false;
+
+function updatePauseMenuUI(){
+  if($('pauseModeSpan')){
+    $('pauseModeSpan').textContent = (gameMode === 'creative') ? 'Yaratıcı' : 'Hayatta Kalma';
+    $('pauseModeSpan').style.color = (gameMode === 'creative') ? 'var(--mc-blue)' : 'var(--mc-gold)';
+  }
+  if($('pauseKeepInvSpan')){
+    $('pauseKeepInvSpan').textContent = keepInventory ? 'Açık' : 'Kapalı';
+    $('pauseKeepInvSpan').style.color = keepInventory ? '#4ade80' : '#ef4444';
+  }
+}
+
+function toggleKeepInv(){
+  keepInventory = !keepInventory;
+  updatePauseMenuUI();
+  toast(keepInventory ? '🛡️ Envanteri Koru: Açık (Ölünce eşyalar gitmez)' : '⚠️ Envanteri Koru: Kapalı (Ölünce eşyalar düşer)');
+}
+
+function togglePauseMenu(show){
+  if(show === undefined) show = !isPaused;
+  isPaused = show;
+  const modal = $('pauseModal');
+  if(!modal) return;
+  modal.style.display = isPaused ? 'flex' : 'none';
+  updatePauseMenuUI();
+  if(isPaused){
+    if(document.pointerLockElement) document.exitPointerLock();
+  } else {
+    if(!isTouchDevice && $('invModal').style.display !== 'flex'){
+      $('c').requestPointerLock();
+    }
+  }
+}
+
 function toggleGameMode(){
   gameMode = (gameMode === 'survival') ? 'creative' : 'survival';
   $('modeText').textContent = (gameMode === 'creative') ? 'Yaratıcı (Creative)' : 'Hayatta Kalma';
   $('modeText').style.color = (gameMode === 'creative') ? 'var(--mc-blue)' : 'var(--mc-gold)';
   $('statusBars').style.display = (gameMode === 'creative') ? 'none' : 'flex';
+  updatePauseMenuUI();
   toast(gameMode === 'creative' ? '✨ Yaratıcı Mod: Uçabilir ve sınırsız blok kırabilirsin!' : '⚔️ Hayatta Kalma Modu devrede!');
 }
 $('modeBtn').onclick = toggleGameMode;
+if($('menuBtn')) $('menuBtn').onclick = () => togglePauseMenu(true);
 
 /* ================= RASTGELE HARİTA TOHUMU VE DENİZ ================= */
 let SEED = Math.floor(Math.random() * 900000) + 100000;
@@ -1144,14 +1207,11 @@ function damagePlayer(amount){
 }
 
 function respawnPlayer(){
-  // Kuşanılan eşyalar da yere düşer (survival)
-  if(gameMode === 'survival'){
+  // Kuşanılan eşyalar ve envanter (keepInventory kapalıysa yere düşer)
+  if(gameMode === 'survival' && !keepInventory){
     for(const s of ['armor', 'offhand']){
       if(equip[s]){ spawnDrop(player.x, player.y + 0.5, player.z, equip[s], 1); equip[s] = 0; }
     }
-  }
-  // Ölünce envanter yere düşer (survival)
-  if(gameMode === 'survival'){
     for(const k of Object.keys(inv)){
       spawnDrop(player.x, player.y + 0.5, player.z, parseInt(k), inv[k]);
       delete inv[k];
@@ -1635,6 +1695,13 @@ function collide(px, py, pz){
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
+  if(e.code === 'Escape'){
+    if($('invModal').style.display === 'flex'){
+      toggleInventory(false);
+    } else {
+      togglePauseMenu();
+    }
+  }
   if(e.code >= 'Digit1' && e.code <= 'Digit9'){
     selectSlot(parseInt(e.code.replace('Digit','')) - 1);
   }
@@ -1652,22 +1719,25 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 let isLocked = false;
 $('c').addEventListener('click', () => {
-  if(!isLocked && !isTouchDevice && $('invModal').style.display !== 'flex'){
+  if(!isLocked && !isTouchDevice && !isPaused && $('invModal').style.display !== 'flex'){
     $('c').requestPointerLock();
   }
 });
 document.addEventListener('pointerlockchange', () => {
   isLocked = document.pointerLockElement === $('c');
+  if(!isLocked && !isTouchDevice && $('invModal').style.display !== 'flex' && !isPaused){
+    togglePauseMenu(true);
+  }
 });
 document.addEventListener('mousemove', e => {
-  if(!isLocked || $('invModal').style.display === 'flex') return;
+  if(!isLocked || isPaused || $('invModal').style.display === 'flex') return;
   player.yaw -= e.movementX * 0.0024;
   player.pitch -= e.movementY * 0.0024;
   player.pitch = Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, player.pitch));
 });
 
 window.addEventListener('mousedown', e => {
-  if(!isLocked || $('invModal').style.display === 'flex') return;
+  if(!isLocked || isPaused || $('invModal').style.display === 'flex') return;
   if(e.button === 0){
     if(!tryAttack()) mineTarget(); // Önce yaratığa vur, yoksa blok kır
   }
@@ -1870,13 +1940,15 @@ function writeSave(){
     const mods = [];
     for(const [k, id] of worldMods){ const [x, y, z] = k.split(',').map(Number); mods.push([x, y, z, id]); }
     localStorage.setItem('orijinalMinecraft.save', JSON.stringify({
-      v: 2, CHUNK_Y, seed: SEED, mods, inv, equip, hunger, hp: playerStats.hp, mode: gameMode, hotbar: hotbarSlots,
+      v: 2, CHUNK_Y, seed: SEED, mods, inv, equip, hunger, hp: playerStats.hp, mode: gameMode, keepInventory, hotbar: hotbarSlots,
       player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch }
     }));
   } catch(e){}
 }
 function applySavedState(){
   if(!savedGame) return;
+  if(typeof savedGame.keepInventory === 'boolean') keepInventory = savedGame.keepInventory;
+  updatePauseMenuUI();
   Object.assign(inv, savedGame.inv || {});
   Object.assign(equip, savedGame.equip || {});
   hunger = (typeof savedGame.hunger === 'number') ? savedGame.hunger : 20;
@@ -2147,9 +2219,9 @@ function animate(now){
     damagePlayer(1);
   }
 
-  // Hareket
-  const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
-  const strafe = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+  // Hareket (Oyun duraklatılmamışsa)
+  const forward = isPaused ? 0 : (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+  const strafe = isPaused ? 0 : (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
   // Shift basılı + ileri (W): hayatta kalma modunda koşma (yemek daha hızlı biter)
   isSprinting = gameMode === 'survival' && (keys['ShiftLeft'] || keys['ShiftRight']) && forward > 0;
   const speed = ((gameMode === 'creative') ? 8.5 : (isSprinting ? 7.4 : 5.2)) * (inWater ? 0.6 : 1);
@@ -2168,7 +2240,9 @@ function animate(now){
   inWater = getBlock(Math.floor(player.x), Math.floor(player.y + 0.8), Math.floor(player.z)) === 13;
 
   // Zıplama & Yaratıcı Uçuş
-  if(gameMode === 'creative'){
+  if(isPaused){
+    player.vy = 0;
+  } else if(gameMode === 'creative'){
     if(keys['Space']) player.vy = 6.0;
     else if(keys['ShiftLeft'] || keys['KeyC']) player.vy = -6.0;
     else player.vy = 0;
