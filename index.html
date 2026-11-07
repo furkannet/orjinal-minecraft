@@ -27,6 +27,9 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 #modeBtn{color:var(--mc-gold);border-color:var(--mc-gold)}
 #invToggleBtn{background:#1e3a52;border-color:var(--mc-blue);color:#fff}
 
+/* Hasar kırmızı flaşı */
+#hurtFlash{position:fixed;inset:0;background:rgba(255,0,0,.35);opacity:0;pointer-events:none;transition:opacity .15s;z-index:9}
+
 /* Hearts & Hunger */
 #statusBars{position:fixed;bottom:64px;left:50%;transform:translateX(-50%);display:flex;justify-content:space-between;width:min(320px,90vw);font-size:14px;pointer-events:none;z-index:10;text-shadow:0 1px 3px #000}
 
@@ -91,6 +94,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   <div id="hunger">🍗🍗🍗🍗🍗</div>
 </div>
 
+<div id="hurtFlash"></div>
+
 <div id="hotbar"></div>
 
 <div id="mobileControls">
@@ -125,7 +130,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.3';
+const APP_VERSION = 'v0.1.4';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -392,6 +397,41 @@ function initTextures(){
       const b = noise(210, 20); cx.fillStyle = rgb(25, 45, b); cx.fillRect(x, y, 1, 1);
     }
   });
+  TEXTURES.lava = makePixelTexture(cx => {
+    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
+      cx.fillStyle = rgb(noise(235, 20), noise(105, 40), noise(20, 12)); cx.fillRect(x, y, 1, 1);
+    }
+  });
+  TEXTURES.furnace = makePixelTexture(cx => {
+    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
+      const g = noise(120, 18); cx.fillStyle = rgb(g, g, g); cx.fillRect(x, y, 1, 1);
+    }
+    for(let y=6; y<=10; y++) for(let x=5; x<=10; x++){
+      cx.fillStyle = rgb(255, noise(130, 30), 20); cx.fillRect(x, y, 1, 1);
+    }
+  });
+  TEXTURES.snow = makePixelTexture(cx => {
+    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
+      const g = noise(240, 8); cx.fillStyle = rgb(g, g, 255); cx.fillRect(x, y, 1, 1);
+    }
+  });
+  TEXTURES.cactus = makePixelTexture(cx => {
+    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
+      const stripe = (x % 4 === 0) ? 20 : 0;
+      cx.fillStyle = rgb(noise(40 + stripe, 10), noise(120 + stripe, 15), noise(40, 10)); cx.fillRect(x, y, 1, 1);
+    }
+  });
+  TEXTURES.sandstone = makePixelTexture(cx => {
+    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
+      const band = (y % 5 === 0) ? -15 : 0;
+      cx.fillStyle = rgb(noise(222 + band, 10), noise(204 + band, 10), noise(150 + band, 12)); cx.fillRect(x, y, 1, 1);
+    }
+  });
+  TEXTURES.anvil = makePixelTexture(cx => {
+    for(let y=0; y<16; y++) for(let x=0; x<16; x++){
+      const g = noise(70, 14); cx.fillStyle = rgb(g, g, g + 6); cx.fillRect(x, y, 1, 1);
+    }
+  });
 }
 initTextures();
 
@@ -447,8 +487,67 @@ const BLOCKS = {
   20: { id: 20, name: 'Taş Tuğla', icon: TEXTURES.stone_brick.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.stone_brick.tex}) },
   21: { id: 21, name: 'Beyaz Yün', icon: TEXTURES.wool_white.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.wool_white.tex}) },
   22: { id: 22, name: 'Kırmızı Yün', icon: TEXTURES.wool_red.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.wool_red.tex}) },
-  23: { id: 23, name: 'Mavi Yün', icon: TEXTURES.wool_blue.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.wool_blue.tex}) }
+  23: { id: 23, name: 'Mavi Yün', icon: TEXTURES.wool_blue.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.wool_blue.tex}) },
+  24: { id: 24, name: 'Lav', icon: TEXTURES.lava.canvas, getMats: () => new THREE.MeshBasicMaterial({map: TEXTURES.lava.tex}) },
+  25: { id: 25, name: 'Ocak', icon: TEXTURES.furnace.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.furnace.tex}) },
+  26: { id: 26, name: 'Örs', icon: TEXTURES.anvil.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.anvil.tex}) }
 };
+
+/* ---- Eşyalar (27-39, yerleştirilemez) ve çalışma masası (40) ---- */
+function itemDef(id, name, color, shape){
+  const pm = makePixelTexture(cx => {
+    cx.clearRect(0, 0, 16, 16);
+    cx.fillStyle = color;
+    if(shape === 'pick'){
+      // Kazma: kavisli baş + çapraz sap
+      const head = [[1,7],[2,6],[3,5],[4,4],[5,4],[6,3],[7,3],[8,3],[9,4],[10,4],[11,5],[12,6],[13,7]];
+      const handle = [[7,4],[6,5],[6,6],[5,7],[5,8],[4,9],[4,10],[3,11],[3,12],[2,13],[2,14]];
+      for(const [x, y] of head) cx.fillRect(x, y, 1, 1);
+      cx.fillStyle = '#8b5a2b';
+      for(const [x, y] of handle) cx.fillRect(x, y, 1, 1);
+    } else if(shape === 'sword'){
+      // Kılıç: çapraz bıçak, koruma ve sap
+      for(let i = 0; i < 8; i++){ cx.fillRect(12 - i, 2 + i, 1, 1); cx.fillRect(11 - i, 2 + i, 1, 1); } // Bıçak
+      cx.fillStyle = '#b08a4a';
+      for(const [x, y] of [[3,7],[4,8],[5,9],[6,10],[7,11]]) cx.fillRect(x, y, 1, 1); // Koruma (bıçağa dik)
+      cx.fillStyle = '#8b5a2b';
+      for(const [x, y] of [[4,10],[3,11],[2,12],[1,13]]) cx.fillRect(x, y, 1, 1);     // Sap
+    } else if(shape === 'tool'){
+      cx.fillRect(3, 3, 8, 3);      // Kafa
+      cx.fillRect(7, 6, 2, 8);      // Sap
+    } else if(shape === 'stick'){
+      cx.fillRect(7, 2, 2, 12);
+    } else {
+      cx.fillRect(4, 4, 8, 8);      // Yuvarlak eşya yerine kare
+    }
+  });
+  return { id, name, icon: pm.canvas, isItem: true,
+    getMats: () => new THREE.MeshLambertMaterial({map: pm.tex, transparent: true, alphaTest: 0.5, side: THREE.DoubleSide}) };
+}
+// Eşyalar küp değil, iki yüzlü düz kart olarak gösterilir
+const itemPlaneGeo = new THREE.PlaneGeometry(1, 1);
+Object.assign(BLOCKS, {
+  27: itemDef(27, 'Çürük Et', '#6b7a2a', 'square'),
+  28: itemDef(28, 'Kömür', '#222222', 'square'),
+  29: itemDef(29, 'Elmas', '#5ff0f0', 'square'),
+  30: itemDef(30, 'Demir Cevheri', '#c8a080', 'square'),
+  31: itemDef(31, 'Altın Cevheri', '#f2c23a', 'square'),
+  32: itemDef(32, 'Çubuk', '#9a7040', 'stick'),
+  33: itemDef(33, 'Tahta Kazma', '#9a7040', 'pick'),
+  38: itemDef(38, 'Demir Zırh', '#cfd8e0', 'square'),
+  45: itemDef(45, 'Kalkan', '#8a5a2a', 'square'),
+  42: itemDef(42, 'Taş Kazma', '#9a9a9a', 'pick'),
+  43: itemDef(43, 'Demir Kazma', '#e0e0e0', 'pick'),
+  44: itemDef(44, 'Elmas Kazma', '#5ff0f0', 'pick'),
+  34: itemDef(34, 'Kılıç', '#d0d0d8', 'sword'),
+  35: itemDef(35, 'Demir Külçesi', '#e0e0e0', 'square'),
+  36: itemDef(36, 'Çiğ Et', '#d8607a', 'square'),
+  37: itemDef(37, 'Pişmiş Et', '#8a4a22', 'square'),
+  40: { id: 40, name: 'Çalışma Masası', icon: TEXTURES.planks.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.planks.tex}) },
+  47: { id: 47, name: 'Kumtaşı', icon: TEXTURES.sandstone.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.sandstone.tex}) },
+  41: { id: 41, name: 'Kar', icon: TEXTURES.snow.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.snow.tex}) },
+  46: { id: 46, name: 'Kaktüs', icon: TEXTURES.cactus.canvas, getMats: () => new THREE.MeshLambertMaterial({map: TEXTURES.cactus.tex}) }
+});
 
 for(const k in BLOCKS){
   BLOCKS[k].mat = BLOCKS[k].getMats();
@@ -469,6 +568,15 @@ $('modeBtn').onclick = toggleGameMode;
 let SEED = Math.floor(Math.random() * 900000) + 100000;
 const urlParams = new URLSearchParams(window.location.search);
 if(urlParams.get('seed')) SEED = parseInt(urlParams.get('seed'));
+
+/* ================= KAYIT (localStorage) ================= */
+// Oyuncunun yaptığı blok değişiklikleri: "x,y,z" -> blok id
+const worldMods = new Map();
+const savedGame = readSave();
+if(savedGame){
+  if(!urlParams.get('seed')) SEED = savedGame.seed;
+  for(const [x, y, z, id] of savedGame.mods) worldMods.set(`${x},${y},${z}`, id);
+}
 $('seedVal').textContent = SEED;
 
 const SEA_LEVEL = 7; // Deniz seviyesi
@@ -499,7 +607,8 @@ const RENDER_DIST = 2;
 const chunks = new Map();
 const chunkGroup = new THREE.Group();
 
-function buildVillageHouse(blocks, hx, hz, baseY){
+function buildVillageHouse(blocks, hx, hz, baseY, blacksmith = false){
+  const roofId = blacksmith ? 20 : 6; // Demirci: taş tuğla çatı
   // 5x5 Köy Evi
   for(let x = 0; x < 5; x++){
     for(let z = 0; z < 5; z++){
@@ -523,9 +632,69 @@ function buildVillageHouse(blocks, hx, hz, baseY){
         }
       }
       // Çatı
-      blocks[hx + x + (hz + z) * CHUNK_SIZE + (baseY + 4) * CHUNK_SIZE * CHUNK_SIZE] = 6; // Tahta çatı
+      blocks[hx + x + (hz + z) * CHUNK_SIZE + (baseY + 4) * CHUNK_SIZE * CHUNK_SIZE] = roofId; // Çatı
     }
   }
+  if(blacksmith){
+    // Ocak ve örs (demirci ekipmanı)
+    blocks[hx + 1 + (hz + 3) * CHUNK_SIZE + (baseY + 1) * CHUNK_SIZE * CHUNK_SIZE] = 25;
+    blocks[hx + 3 + (hz + 3) * CHUNK_SIZE + (baseY + 1) * CHUNK_SIZE * CHUNK_SIZE] = 26;
+  }
+}
+
+// Biyom seçimi (ocak/çöl/kar/orman/ova), köy ve çöl tapınağı yerleşimi için
+function biomeAt(gx, gz){
+  const bOcean = smoothNoise(gx * 0.02 + 5000, gz * 0.02 + 5000);
+  const bTemp = smoothNoise(gx * 0.012 + 1500, gz * 0.012 + 1500);
+  const bHum = smoothNoise(gx * 0.012 + 3100, gz * 0.012 - 700);
+  return (bOcean > 0.7) ? 'ocean' : (bTemp > 0.64 && bHum < 0.42) ? 'desert' : (bTemp < 0.36) ? 'snow' : (bHum > 0.62) ? 'forest' : 'plains';
+}
+
+// Okyanus biyomunda yüzey alçaltıldığı için, yapıların gerçek yüzey yüksekliği
+function surfaceAt(gx, gz){
+  let h = Math.max(2, Math.min(CHUNK_Y - 7, terrainHeight(gx, gz)));
+  if(biomeAt(gx, gz) === 'ocean') h = Math.max(2, Math.min(h, SEA_LEVEL - 3));
+  return h;
+}
+// Yapı, kuru ve yeterince yüksek bir zemine oturuyor mu (köşelerde)
+function dryFootprint(cx, cz, corners){
+  return corners.every(([x, z]) => surfaceAt(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z) > SEA_LEVEL + 1);
+}
+
+// Çöl tapınağı: 9x9 kumtaşı piramit, içinde küçük bir oda ve bir giriş
+function buildDesertTemple(blocks, cx, cz){
+  const X0 = 3, X1 = 11, CX = 7; // yerel koordinatlar
+  if(!dryFootprint(cx, cz, [[3,3],[11,3],[3,11],[11,11]])) return;
+  const baseY = surfaceAt(cx * CHUNK_SIZE + CX, cz * CHUNK_SIZE + CX);
+  if(baseY <= SEA_LEVEL || baseY + 5 >= CHUNK_Y) return;
+  const idxOf = (x, y, z) => x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
+  for(let x = X0; x <= X1; x++) for(let z = X0; z <= X1; z++){
+    const d = Math.min(x - X0, X1 - x, z - X0, X1 - z);
+    const top = baseY + d;
+    const hCol = terrainHeight(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
+    for(let y = 1; y <= Math.max(top, hCol); y++){
+      blocks[idxOf(x, y, z)] = (y <= top) ? 47 : 0; // Piramit dolgusu, fazla toprak temizlenir
+    }
+  }
+  // İç oda ve giriş koridoru
+  for(let x = CX - 1; x <= CX + 1; x++) for(let z = CX - 1; z <= CX + 1; z++){
+    blocks[idxOf(x, baseY + 1, z)] = 0;
+    blocks[idxOf(x, baseY + 2, z)] = 0;
+  }
+  for(let z = X0; z <= CX - 1; z++){
+    blocks[idxOf(CX, baseY, z)] = 0;
+    blocks[idxOf(CX, baseY + 1, z)] = 0;
+  }
+}
+
+const LAKE_LEVEL = 10; // Göllerin su seviyesi
+const LAVA_Y = 5;      // Bu seviyenin altındaki mağara boşlukları lavla dolar
+
+// Yer altı mağaraları: tüneller ve büyük odalar (3B izlenimi veren 2B gürültü katmanları)
+function caveAt(gx, y, gz){
+  const tunnel = smoothNoise(gx * 0.09 + y * 0.31, gz * 0.09 - y * 0.47);
+  const chamber = smoothNoise(gx * 0.035 + y * 0.13 + 900, gz * 0.035 - y * 0.19 + 900);
+  return tunnel > 0.87 || (chamber > 0.91 && y < 24);
 }
 
 function createChunk(cx, cz){
@@ -535,23 +704,42 @@ function createChunk(cx, cz){
   chunkGroup.add(ch.group);
 
   // Köy var mı kontrolü (Düzlük chunklarda %22 şans)
-  const isVillageChunk = (hash2D(cx * 17.3, cz * 19.7) > 0.78);
+  const isVillageChunk = (hash2D(cx * 17.3, cz * 19.7) > 0.93); // Köyler nadir
   let houseBuilt = false;
 
   for(let lx = 0; lx < CHUNK_SIZE; lx++){
     for(let lz = 0; lz < CHUNK_SIZE; lz++){
       const gx = cx * CHUNK_SIZE + lx;
       const gz = cz * CHUNK_SIZE + lz;
-      const h = Math.max(2, Math.min(CHUNK_Y - 7, terrainHeight(gx, gz)));
+      let h = Math.max(2, Math.min(CHUNK_Y - 7, terrainHeight(gx, gz)));
+      // Biyomlar: okyanus (alçak, su dolu), çöl (kum, ağaçsız), karlı (kar), orman (sık ağaç), ova
+      const bOcean = smoothNoise(gx * 0.02 + 5000, gz * 0.02 + 5000);
+      const bTemp = smoothNoise(gx * 0.012 + 1500, gz * 0.012 + 1500);
+      const bHum = smoothNoise(gx * 0.012 + 3100, gz * 0.012 - 700);
+      if(bOcean > 0.7) h = Math.max(2, Math.min(h, SEA_LEVEL - 3));
+      const biome = (bOcean > 0.7) ? 'ocean' : (bTemp > 0.64 && bHum < 0.42) ? 'desert' : (bTemp < 0.36) ? 'snow' : (bHum > 0.62) ? 'forest' : 'plains';
+      const canTree = biome === 'plains' || biome === 'forest';
+      const treeThresh = biome === 'forest' ? 0.93 : 0.965;
+      // Göl: alçak arazide, gürültü değeri yüksekse su ile dolar
+      const inLake = h > SEA_LEVEL && h <= LAKE_LEVEL && smoothNoise(gx * 0.015 + 300, gz * 0.015 + 300) > 0.66;
 
       for(let y = 0; y <= h; y++){
         const idx = lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
+        // Mağara boşlukları (yüzeyde girişler de oluşur); derin kısımlar lavla dolu
+        // Mağaralar sadece karada; deniz tabanında mağara ve lav olmaz
+        if(y >= 2 && h > SEA_LEVEL && caveAt(gx, y, gz)){
+          blocks[idx] = (y <= LAVA_Y) ? 24 : 0;
+          continue;
+        }
         if(y === 0){
           blocks[idx] = 19; // En dip obsidyen
         } else if(y === h){
-          blocks[idx] = (h <= SEA_LEVEL) ? 8 : 1; // Sahilde kum, karada çim
+          // Sahil, göl kenarı ve çöl kum; karlı biyomda kar; ova ve orman çimen
+          if(h <= SEA_LEVEL || inLake || biome === 'desert') blocks[idx] = 8;
+          else if(biome === 'snow') blocks[idx] = 41;
+          else blocks[idx] = 1;
         } else if(y >= h - 2){
-          blocks[idx] = (h <= SEA_LEVEL) ? 8 : 2;
+          blocks[idx] = (h <= SEA_LEVEL || biome === 'desert') ? 8 : 2;
         } else {
           // Madenler
           const oreRand = hash2D(gx * 3.7 + y * 1.3, gz * 2.9 + y * 7.1);
@@ -571,9 +759,23 @@ function createChunk(cx, cz){
         }
       }
 
+      // Çöl kaktüsü
+      if(biome === 'desert' && h > SEA_LEVEL && hash2D(gx * 7.3 + 1, gz * 5.1) > 0.985){
+        for(let ty = 1; ty <= 2; ty++){
+          if(h + ty < CHUNK_Y) blocks[lx + lz * CHUNK_SIZE + (h + ty) * CHUNK_SIZE * CHUNK_SIZE] = 46;
+        }
+      }
+
+      // Göl suyu
+      if(inLake){
+        for(let wy = h + 1; wy <= LAKE_LEVEL; wy++){
+          blocks[lx + lz * CHUNK_SIZE + wy * CHUNK_SIZE * CHUNK_SIZE] = 13;
+        }
+      }
+
       // Ağaçlar (Sadece karada ve köy evi olmayan yerlerde)
       const treeRand = hash2D(gx * 5.1, gz * 7.7);
-      if(!isVillageChunk && h > SEA_LEVEL + 1 && treeRand > 0.965 && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13){
+      if(!isVillageChunk && !inLake && canTree && h > SEA_LEVEL + 1 && treeRand > treeThresh && lx >= 2 && lx <= 13 && lz >= 2 && lz <= 13){
         const trunkH = 4 + (treeRand > 0.985 ? 1 : 0);
         for(let ty = 1; ty <= trunkH; ty++){
           if(h + ty < CHUNK_Y) blocks[lx + lz * CHUNK_SIZE + (h + ty) * CHUNK_SIZE * CHUNK_SIZE] = 5;
@@ -597,13 +799,18 @@ function createChunk(cx, cz){
 
   // Köy Evi Yerleştir
   if(isVillageChunk && !houseBuilt){
-    const centerH = terrainHeight(cx * CHUNK_SIZE + 5, cz * CHUNK_SIZE + 5);
-    if(centerH > SEA_LEVEL){
-      buildVillageHouse(blocks, 5, 5, centerH);
+    const centerH = surfaceAt(cx * CHUNK_SIZE + 5, cz * CHUNK_SIZE + 5);
+    if(centerH > SEA_LEVEL && dryFootprint(cx, cz, [[5,5],[9,5],[5,9],[9,9]]) && biomeAt(cx * CHUNK_SIZE + 7, cz * CHUNK_SIZE + 7) !== 'ocean'){
+      buildVillageHouse(blocks, 5, 5, centerH, hash2D(cx * 41.3, cz * 7.1) > 0.5);
       houseBuilt = true;
       // Köye bir köylü spawn et
       spawnMob('villager', cx * CHUNK_SIZE + 7.5, centerH + 1, cz * CHUNK_SIZE + 7.5);
     }
+  }
+
+  // Çöl tapınağı (çöl biyomunda, seyrek)
+  if(!isVillageChunk && hash2D(cx * 13.7 + 2, cz * 9.3) > 0.9 && biomeAt(cx * CHUNK_SIZE + 7, cz * CHUNK_SIZE + 7) === 'desert'){
+    buildDesertTemple(blocks, cx, cz);
   }
 
   // Doğal hayvan spawn şansı
@@ -614,6 +821,13 @@ function createChunk(cx, cz){
     }
   }
 
+  // Kayıtlı değişiklikleri bu chunk'a uygula
+  for(const [k, id] of worldMods){
+    const [x, y, z] = k.split(',').map(Number);
+    if(Math.floor(x / CHUNK_SIZE) !== cx || Math.floor(z / CHUNK_SIZE) !== cz) continue;
+    if(y < 0 || y >= CHUNK_Y) continue;
+    blocks[((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE + (((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE) * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
+  }
   return ch;
 }
 
@@ -713,6 +927,7 @@ function setBlock(x, y, z, id){
   const lx = ((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
   const lz = ((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE;
   ch.blocks[lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
+  worldMods.set(`${x},${y},${z}`, id);
   rebuildChunkMesh(ch);
 
   if(lx === 0) { const nb = chunks.get(`${cx-1},${cz}`); if(nb) rebuildChunkMesh(nb); }
@@ -745,6 +960,21 @@ function updateChunks(){
 const mobs = [];
 const mobGroup = new THREE.Group();
 
+// Yaratıkların yüzü: gözler (ve varsa ağız) gövdenin ön yüzüne eklenir
+function addFace(g, headY, frontZ, mouthY, mouthW){
+  const eyeMat = new THREE.MeshBasicMaterial({color: 0x111111});
+  for(const ex of [-0.12, 0.12]){
+    const e = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.03), eyeMat);
+    e.position.set(ex, headY + 0.06, frontZ);
+    g.add(e);
+  }
+  if(mouthY !== null){
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(mouthW, 0.05, 0.03), new THREE.MeshBasicMaterial({color: 0x5a1010}));
+    mouth.position.set(0, mouthY, frontZ);
+    g.add(mouth);
+  }
+}
+
 function createMobMesh(type){
   const g = new THREE.Group();
   if(type === 'villager'){
@@ -758,6 +988,7 @@ function createMobMesh(type){
     const legs = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.35), new THREE.MeshLambertMaterial({color: 0x3d2514}));
     legs.position.y = 0.175;
     g.add(head, nose, body, legs);
+    addFace(g, 1.35, 0.265, null, 0);
   } else if(type === 'zombie'){
     // Zombi: Yeşil kafa + Mavi üst + Kollar öne uzanmış
     const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), new THREE.MeshLambertMaterial({color: 0x488a38}));
@@ -769,6 +1000,34 @@ function createMobMesh(type){
     const legs = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.45, 0.3), new THREE.MeshLambertMaterial({color: 0x2c3558}));
     legs.position.y = 0.225;
     g.add(head, body, arms, legs);
+    addFace(g, 1.35, 0.265, 1.2, 0.22);
+  } else if(type === 'spitter'){
+    // İskelet: Kemik rengi gövde, kollar, bacaklar ve ağzından zehir fırlatır
+    const boneMat = new THREE.MeshLambertMaterial({color: 0xc8c8c8});
+    const darkMat = new THREE.MeshBasicMaterial({color: 0x1f1f1f});
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), boneMat);
+    head.position.y = 1.35;
+    // İskelet yüzü (karanlık göz delikleri ve açık zehir ağzı)
+    const eyeL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.03), darkMat);
+    eyeL.position.set(-0.12, 1.4, 0.265);
+    const eyeR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.03), darkMat);
+    eyeR.position.set(0.12, 1.4, 0.265);
+    const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.12, 0.05), darkMat);
+    mouth.position.set(0, 1.24, 0.265);
+    // Gövde (kaburga yapısı)
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.7, 0.24), boneMat);
+    body.position.y = 0.75;
+    // İskelet kolları (öne doğru uzanmış)
+    const armL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.55), boneMat);
+    armL.position.set(-0.28, 0.95, 0.26);
+    const armR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.55), boneMat);
+    armR.position.set(0.28, 0.95, 0.26);
+    // İnce bacaklar
+    const legL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), boneMat);
+    legL.position.set(-0.12, 0.225, 0);
+    const legR = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.45, 0.12), boneMat);
+    legR.position.set(0.12, 0.225, 0);
+    g.add(head, eyeL, eyeR, mouth, body, armL, armR, legL, legR);
   } else if(type === 'sheep' || type === 'cow'){
     // Hayvan: 4 ayaklı gövde
     const color = (type === 'sheep') ? 0xf0f0f0 : 0x7a431d;
@@ -782,6 +1041,12 @@ function createMobMesh(type){
       g.add(leg);
     }
     g.add(body, head);
+    // Hayvan yüzü: iki göz (kafanın ön yüzü z=0.75)
+    for(const ex of [-0.09, 0.09]){
+      const e = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.03), new THREE.MeshBasicMaterial({color: 0x111111}));
+      e.position.set(ex, 0.98, 0.765);
+      g.add(e);
+    }
   }
   return g;
 }
@@ -793,12 +1058,330 @@ function spawnMob(type, x, y, z){
   mobGroup.add(mesh);
   mobs.push({
     type, mesh, x, y, z, vx: 0, vz: 0,
+    hp: (type === 'zombie' || type === 'spitter') ? 6 : 10,
     timer: Math.random() * 3,
     yaw: Math.random() * Math.PI * 2
   });
 }
 
+/* ---- Oyuncu canı, tükürük projektilleri ---- */
+const playerStats = { hp: 20, maxHp: 20, invul: 0 }; // 20 can = 10 kalp
+const spits = [];
+const spitGeo = new THREE.SphereGeometry(0.16, 8, 6);
+const spitMat = new THREE.MeshLambertMaterial({color: 0x9be32b, emissive: 0x2a5a00});
+
+function renderHearts(){
+  const el = $('hearts');
+  if(!el) return;
+  const full = Math.ceil(playerStats.hp / 2), total = playerStats.maxHp / 2;
+  let s = '';
+  for(let i = 0; i < total; i++) s += (i < full) ? '❤️' : '🖤';
+  el.textContent = s;
+}
+
+function damagePlayer(amount){
+  if(gameMode === 'creative' || playerStats.invul > 0) return;
+  if(equip.armor === 38) amount = Math.ceil(amount * 0.5);          // Kuşanılan demir zırh
+  if(equip.offhand === 45 && rmbHeld) amount = Math.ceil(amount * 0.5); // Sağ tutulan kalkan
+  playerStats.hp = Math.max(0, playerStats.hp - amount);
+  playerStats.invul = 0.6;
+  playSound('zombie');
+  const f = $('hurtFlash');
+  f.style.opacity = '1';
+  setTimeout(() => { f.style.opacity = '0'; }, 150);
+  renderHearts();
+  if(playerStats.hp <= 0) respawnPlayer();
+}
+
+function respawnPlayer(){
+  // Kuşanılan eşyalar da yere düşer (survival)
+  if(gameMode === 'survival'){
+    for(const s of ['armor', 'offhand']){
+      if(equip[s]){ spawnDrop(player.x, player.y + 0.5, player.z, equip[s], 1); equip[s] = 0; }
+    }
+  }
+  // Ölünce envanter yere düşer (survival)
+  if(gameMode === 'survival'){
+    for(const k of Object.keys(inv)){
+      spawnDrop(player.x, player.y + 0.5, player.z, parseInt(k), inv[k]);
+      delete inv[k];
+    }
+    renderHotbar();
+  }
+  playerStats.hp = playerStats.maxHp;
+  playerStats.invul = 2;
+  player.x = 8.5; player.z = 8.5; player.vy = 0;
+  player.y = Math.max(terrainHeight(8, 8), SEA_LEVEL) + 2.5;
+  spits.forEach(s => spitGroup.remove(s.mesh));
+  spits.length = 0;
+  renderHearts();
+  toast('💀 Öldün! Yeniden doğdun.');
+}
+
+function spawnSpit(x, y, z, dx, dy, dz){
+  const mesh = new THREE.Mesh(spitGeo, spitMat);
+  mesh.position.set(x, y, z);
+  spitGroup.add(mesh);
+  spits.push({ mesh, x, y, z, vx: dx * 9, vy: dy * 9, vz: dz * 9, life: 4 });
+}
+
+function updateSpit(dt){
+  if(playerStats.invul > 0) playerStats.invul = Math.max(0, playerStats.invul - dt);
+  const px = player.x, py = player.y + 1.1, pz = player.z;
+  for(let i = spits.length - 1; i >= 0; i--){
+    const s = spits[i];
+    s.vy -= 4 * dt;
+    s.x += s.vx * dt; s.y += s.vy * dt; s.z += s.vz * dt;
+    s.life -= dt;
+    s.mesh.position.set(s.x, s.y, s.z);
+    const hit = Math.hypot(s.x - px, s.y - py, s.z - pz) < 0.45;
+    const sb = getBlock(Math.floor(s.x), Math.floor(s.y), Math.floor(s.z));
+    const ground = sb > 0 && sb !== 13 && sb !== 24; // Blokla çarpışınca yok olur
+    if(hit) damagePlayer(2);
+    if(hit || ground || s.life <= 0){
+      spitGroup.remove(s.mesh);
+      spits.splice(i, 1);
+    }
+  }
+}
+
+// Yaratık gövdesi (0.6 genişlik, 1.3 yükseklik) bir bloğun içine girer mi?
+function mobSolid(x, y, z){
+  const r = 0.3, h = 1.3;
+  for(let bx = Math.floor(x - r); bx <= Math.floor(x + r); bx++)
+  for(let bz = Math.floor(z - r); bz <= Math.floor(z + r); bz++)
+  for(let by = Math.floor(y); by <= Math.floor(y + h); by++){
+    const b = getBlock(bx, by, bz);
+    if(b > 0 && b !== 13 && b !== 24) return true;
+  }
+  return false;
+}
+
+/* ================= SALDIRI VE DÜŞEN EŞYALAR (ÇÜRÜK ET) ================= */
+/* ---- Envanter sayıları (survival), açlık ve kayıt ---- */
+const inv = {};          // blok/eşya id -> adet (survival modunda gerçek sayı)
+const equip = { armor: 0, offhand: 0 }; // kuşanılan eşyalar (0 = boş)
+const EQUIP_SLOT = { 38: 'armor', 45: 'offhand' };
+let rmbHeld = false;     // sağ tuş basılı mı (kalkanla bloklama)
+let isSprinting = false; // Shift ile koşuluyor mu
+let inWater = false;     // gövde suda mı
+let air = 20, drownT = 0; // nefes (saniye), boğulma zamanlayıcısı
+const airHud = document.createElement('div');
+airHud.style.cssText = 'position:fixed;top:140px;left:8px;font:13px monospace;background:rgba(20,20,24,.84);color:#8fd8ff;padding:4px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.18);z-index:10;pointer-events:none;display:none';
+(document.body || document.documentElement).appendChild(airHud);
+let attackCd = 0;
+const drops = [];
+const EDIBLE = { 27: 4, 36: 4, 37: 12 }; // yenebilen eşya -> açlık kazancı
+let hunger = 20;        // 0..20 (her ikon 2 puan, 10 ikon)
+let regenT = 0, starveT = 0, lastHungerStr = '';
+
+function invCount(id){ return inv[id] || 0; }
+function addItem(id, n){
+  inv[id] = Math.max(0, (inv[id] || 0) + n);
+  if(inv[id] === 0) delete inv[id];
+  renderHotbar();
+  if($('invModal').style.display === 'flex') renderInventoryGrid(); // Açıkken envanter canlı güncellensin
+}
+function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47].includes(id); }
+function nearBlock(id, r = 4.5){
+  const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
+  for(let x = px - 4; x <= px + 4; x++) for(let y = py - 4; y <= py + 4; y++) for(let z = pz - 4; z <= pz + 4; z++){
+    if(Math.hypot(x - player.x, y - player.y, z - player.z) <= r && getBlock(x, y, z) === id) return true;
+  }
+  return false;
+}
+
+// Kırılan bloğun düşürdüğü eşya (0 = yok). Taş ve cevherler için kazma gerekir.
+// Kazma seviyesi: 1 tahta, 2 taş, 3 demir, 4 elmas (elmas kazma seviye 4 sayılır)
+const REQ_LVL = { 3: 1, 4: 1, 14: 1, 20: 1, 25: 1, 15: 2, 16: 2, 11: 3, 19: 4 };
+const TOOL = { 33: { lvl: 1, dur: 60 }, 42: { lvl: 2, dur: 132 }, 43: { lvl: 3, dur: 251 }, 44: { lvl: 4, dur: 1561 }, 34: { dur: 60 } };
+const PICKS = [44, 43, 42, 33];
+const toolDur = {}; // alet id -> kalan dayanıklılık
+function useTool(id){
+  if(gameMode !== 'survival') return;
+  if(toolDur[id] === undefined) toolDur[id] = TOOL[id].dur;
+  toolDur[id]--;
+  if(toolDur[id] <= 0){
+    delete toolDur[id];
+    addItem(id, -1);
+    toast(`${BLOCKS[id].name} kırıldı!`);
+  }
+}
+const BREAK_DROP = { 1: 2, 2: 2, 3: 4, 4: 4, 11: 29, 14: 28, 15: 30, 16: 31, 19: 19, 20: 20, 25: 25, 5: 5, 6: 6, 8: 8, 9: 9, 10: 10, 12: 12, 17: 17, 21: 21, 22: 22, 23: 23, 40: 40, 41: 41, 46: 46, 47: 47 };
+function blockDrop(id){
+  const need = REQ_LVL[id] || 0;
+  if(need > 0){
+    const pick = PICKS.find(p => invCount(p) > 0 && TOOL[p].lvl >= need);
+    if(!pick) return 0;
+    useTool(pick);
+  }
+  return BREAK_DROP[id] || 0;
+}
+
+function tryEat(){
+  const id = hotbarSlots[activeSlotIdx];
+  if(!EDIBLE[id]) return false;
+  if(invCount(id) <= 0){ toast('Bu eşyadan yok!'); return true; }
+  addItem(id, -1);
+  hunger = Math.min(20, hunger + EDIBLE[id]);
+  playSound('jump');
+  toast(`${BLOCKS[id].name} yendin`);
+  return true;
+}
+
+function updateSurvival(dt){
+  if(gameMode === 'creative'){ hunger = 20; }
+  else {
+    // Nefes: kafa suyun altındaysa 20 saniye dayanılır, sonra boğulur
+    const headWater = getBlock(Math.floor(player.x), Math.floor(player.y + 1.6), Math.floor(player.z)) === 13;
+    if(headWater){
+      air = Math.max(0, air - dt);
+      if(air <= 0){ drownT += dt; if(drownT >= 1){ drownT = 0; damagePlayer(2); } }
+    } else {
+      air = Math.min(20, air + dt * 4);
+      drownT = 0;
+    }
+    hunger = Math.max(0, hunger - dt / 90 - (isSprinting ? dt / 60 : 0));
+    if(hunger >= 14 && playerStats.hp < playerStats.maxHp){
+      regenT += dt;
+      if(regenT >= 4){ regenT = 0; playerStats.hp = Math.min(playerStats.maxHp, playerStats.hp + 1); hunger = Math.max(0, hunger - 1); renderHearts(); }
+    } else regenT = 0;
+    if(hunger <= 0){
+      starveT += dt;
+      if(starveT >= 4){ starveT = 0; damagePlayer(1); }
+    } else starveT = 0;
+  }
+  if(gameMode === 'survival' && air < 20){
+    airHud.style.display = 'block';
+    airHud.textContent = `🫧 Nefes: ${Math.ceil(air)} sn`;
+  } else airHud.style.display = 'none';
+  hunger = Math.min(20, Math.max(0, hunger));
+  const full = Math.ceil(hunger / 2);
+  const s = '🍗'.repeat(full) + '🦴'.repeat(10 - full);
+  if(s !== lastHungerStr){ lastHungerStr = s; $('hunger').textContent = s; }
+}
+
+// Yaratık türü -> düşen eşyalar [id, min, max]
+const LOOT = { zombie: [[27, 1, 2]], cow: [[36, 1, 3]], sheep: [[21, 1, 2], [36, 1, 2]] };
+
+// Bakılan yönde, menzildeki ilk saldırılabilir yaratığı bulur
+function findMobInFront(maxD){
+  const dx = -Math.sin(player.yaw) * Math.cos(player.pitch), dy = Math.sin(player.pitch), dz = -Math.cos(player.yaw) * Math.cos(player.pitch);
+  const ox = player.x, oy = player.y + player.height * 0.85, oz = player.z;
+  let best = null, bestT = maxD;
+  for(const m of mobs){
+    if(!LOOT[m.type] && m.type !== 'spitter') continue;
+    const cx = m.x - ox, cy = (m.y + 0.9) - oy, cz = m.z - oz;
+    const t = cx * dx + cy * dy + cz * dz;
+    if(t < 0 || t > bestT) continue;
+    if(Math.hypot(cx - t * dx, cy - t * dy, cz - t * dz) < 0.7 && hasLineOfSight(ox, oy, oz, m.x, m.y + 0.9, m.z)){ best = m; bestT = t; }
+  }
+  return best;
+}
+
+// true dönerse bir yaratığa vurulmuştur (blok kırma atlanır)
+function tryAttack(){
+  const m = findMobInFront(3.5);
+  if(!m) return false;
+  if(attackCd > 0) return true;
+  attackCd = 0.45;
+  const hasSword = invCount(34) > 0;
+  m.hp -= hasSword ? 4 : 2; // Kılıçla daha güçlü vurulur
+  if(hasSword) useTool(34);
+  playSound('break');
+  if(m.hp <= 0){
+    const i = mobs.indexOf(m);
+    if(i >= 0){ mobGroup.remove(m.mesh); mobs.splice(i, 1); }
+    for(const [id, min, max] of (LOOT[m.type] || [])){
+      const n = min + Math.floor(Math.random() * (max - min + 1));
+      for(let k = 0; k < n; k++) spawnDrop(m.x, m.y + 0.3, m.z, id);
+    }
+  }
+  return true;
+}
+
+function spawnDrop(x, y, z, id, n = 1){
+  const isItem = !!BLOCKS[id].isItem;
+  const mesh = new THREE.Mesh(isItem ? itemPlaneGeo : sharedBoxGeo, BLOCKS[id].mat);
+  mesh.scale.setScalar(isItem ? 0.45 : 0.3);
+  mesh.position.set(x, y, z);
+  dropGroup.add(mesh);
+  drops.push({ id, n, mesh, x, y, z, vx: (Math.random() - 0.5) * 3, vz: (Math.random() - 0.5) * 3, vy: 4, life: 120 });
+}
+
+function updateDrops(dt){
+  attackCd = Math.max(0, attackCd - dt);
+  for(let i = drops.length - 1; i >= 0; i--){
+    const d = drops[i];
+    d.life -= dt;
+    d.vy -= 22 * dt;
+    const nx = d.x + d.vx * dt;
+    if(!mobSolid(nx, d.y, d.z)) d.x = nx; else d.vx = 0;
+    const nz = d.z + d.vz * dt;
+    if(!mobSolid(d.x, d.y, nz)) d.z = nz; else d.vz = 0;
+    const ny = d.y + d.vy * dt;
+    if(mobSolid(d.x, ny, d.z)) d.vy = 0; else d.y = ny;
+    const fr = Math.max(0, 1 - 4 * dt);
+    d.vx *= fr; d.vz *= fr;
+    d.mesh.position.set(d.x, d.y + 0.15, d.z);
+    d.mesh.rotation.y += dt * 2;
+
+    const picked = Math.hypot(d.x - player.x, d.z - player.z) < 1.6 && Math.abs(d.y - player.y) < 1.8;
+    if(picked){
+      addItem(d.id, d.n);
+      toast(`+${d.n} ${BLOCKS[d.id].name}`);
+    }
+    if(picked || d.life <= 0){
+      dropGroup.remove(d.mesh);
+      drops.splice(i, 1);
+    }
+  }
+}
+
+// Bir blok yüksekliğindeki basamağa çıkma (suda veya yerdeyken, hayatta kalma modunda)
+function tryStep(nx, nz){
+  if(gameMode !== 'survival' || !(player.onGround || inWater)) return;
+  const target = Math.floor(player.y) + 1;
+  if(collide(nx, target, nz) || mobBlocksPlayer(nx, nz)) return;
+  player.x = nx; player.z = nz; player.y = target;
+  player.vy = 0; player.onGround = false;
+}
+
+// Iki nokta arasında katı blok var mı (duvar arkasını engeller)
+function solidAt(x, y, z){
+  const b = getBlock(x, y, z);
+  return b > 0 && b !== 13 && b !== 24;
+}
+function hasLineOfSight(ax, ay, az, bx, by, bz){
+  const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / 0.25));
+  for(let i = 1; i < steps; i++){
+    const t = i / steps;
+    if(solidAt(Math.floor(ax + (bx - ax) * t), Math.floor(ay + (by - ay) * t), Math.floor(az + (bz - az) * t))) return false;
+  }
+  return true;
+}
+
+// Oyuncu, yaratığın içinden geçemesin
+function mobBlocksPlayer(x, z){
+  for(const m of mobs){
+    if(Math.hypot(m.x - x, m.z - z) < 0.55 && m.y < player.y + player.height && player.y < m.y + 1.4) return true;
+  }
+  return false;
+}
+
 function updateMobs(dt, isNight){
+  updateSpit(dt);
+
+  // Tükürükçü doğurma (gündüz de olabilir, en fazla 3)
+  if(gameMode === 'survival' && Math.random() < 0.004 && mobs.filter(m => m.type === 'spitter').length < 3){
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 20 + Math.random() * 10;
+    const sx = player.x + Math.cos(angle) * dist;
+    const sz = player.z + Math.sin(angle) * dist;
+    const sy = terrainHeight(Math.floor(sx), Math.floor(sz)) + 1;
+    if(sy > SEA_LEVEL) spawnMob('spitter', sx, sy, sz);
+  }
+
   // Gece olunca yakında zombi doğur
   if(isNight && Math.random() < 0.008 && mobs.filter(m => m.type === 'zombie').length < 6){
     const angle = Math.random() * Math.PI * 2;
@@ -813,7 +1396,26 @@ function updateMobs(dt, isNight){
     const m = mobs[i];
     m.timer -= dt;
 
-    if(m.type === 'zombie' && isNight){
+    if(m.type === 'spitter'){
+      // Tükürükçü: oyuncuya bakar, mesafeyi korur ve tükürür
+      const dx = player.x - m.x, dz = player.z - m.z, d = Math.hypot(dx, dz);
+      m.cd = (m.cd ?? 0) - dt;
+      if(d < 20 && gameMode === 'survival'){
+        m.yaw = Math.atan2(dx, dz);
+        if(d > 9){ m.vx = (dx / d) * 1.4; m.vz = (dz / d) * 1.4; }
+        else { m.vx = 0; m.vz = 0; }
+        if(d < 16 && m.cd <= 0 && hasLineOfSight(m.x, m.y + 1.2, m.z, player.x, player.y + 1.1, player.z)){
+          m.cd = 2.2 + Math.random();
+          const sy = m.y + 1.2, dy = (player.y + 1.1) - sy;
+          const len = Math.hypot(d, dy) || 1;
+          const spread = 0.05;
+          spawnSpit(m.x + Math.sin(m.yaw) * 0.4, sy, m.z + Math.cos(m.yaw) * 0.4,
+            dx / len + (Math.random() - 0.5) * spread,
+            dy / len,
+            dz / len + (Math.random() - 0.5) * spread);
+        }
+      } else { m.vx = 0; m.vz = 0; }
+    } else if(m.type === 'zombie' && isNight){
       // Zombi oyuncuyu takip eder
       const dx = player.x - m.x, dz = player.z - m.z;
       const d = Math.hypot(dx, dz);
@@ -821,6 +1423,11 @@ function updateMobs(dt, isNight){
         m.yaw = Math.atan2(dx, dz);
         m.vx = (dx / d) * 2.6;
         m.vz = (dz / d) * 2.6;
+      }
+      // Yakına gelince vurur
+      if(d <= 1.2 && Math.abs(m.y - player.y) < 1.6 && gameMode === 'survival' && hasLineOfSight(m.x, m.y + 1, m.z, player.x, player.y + 1.1, player.z)){
+        m.hitCd = (m.hitCd ?? 0) - dt;
+        if(m.hitCd <= 0){ damagePlayer(2); m.hitCd = 1.0; }
       }
     } else if(m.timer <= 0){
       m.timer = 2 + Math.random() * 4;
@@ -834,11 +1441,25 @@ function updateMobs(dt, isNight){
       }
     }
 
-    // Hareket ve zemin takibi
-    m.x += m.vx * dt;
-    m.z += m.vz * dt;
-    const gh = terrainHeight(Math.floor(m.x), Math.floor(m.z));
-    m.y = Math.max(gh + 1, SEA_LEVEL);
+    // Hareket: bloklara çarpar, yerçekimi uygular
+    let blocked = false;
+    const nx = m.x + m.vx * dt;
+    if(!mobSolid(nx, m.y, m.z)) m.x = nx; else blocked = true;
+    const nz = m.z + m.vz * dt;
+    if(!mobSolid(m.x, m.y, nz)) m.z = nz; else blocked = true;
+    if(blocked){
+      if(m.onGround) m.vy = 7; // Basamak tırmanma (zıplama)
+      m.timer = 0;             // Gezginler yeni yön seçsin
+    }
+    m.vy = (m.vy || 0) - 22 * dt;
+    const ny = m.y + m.vy * dt;
+    if(mobSolid(m.x, ny, m.z)){
+      if(m.vy < 0) m.onGround = true;
+      m.vy = 0;
+    } else {
+      m.y = ny;
+      m.onGround = false;
+    }
     m.mesh.position.set(m.x, m.y, m.z);
     m.mesh.rotation.y = m.yaw;
 
@@ -848,6 +1469,18 @@ function updateMobs(dt, isNight){
       mobs.splice(i, 1);
     }
   }
+  // Canlılar birbirinin içinden geçmesin
+  for(let i = 0; i < mobs.length; i++) for(let j = i + 1; j < mobs.length; j++){
+    const a = mobs[i], b = mobs[j];
+    if(Math.abs(a.y - b.y) > 1.2) continue;
+    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz);
+    if(d <= 0 || d >= 0.6) continue;
+    const push = (0.6 - d) / 2, ux = dx / d, uz = dz / d;
+    if(!mobSolid(a.x - ux * push, a.y, a.z - uz * push)){ a.x -= ux * push; a.z -= uz * push; }
+    if(!mobSolid(b.x + ux * push, b.y, b.z + uz * push)){ b.x += ux * push; b.z += uz * push; }
+    a.mesh.position.set(a.x, a.y, a.z);
+    b.mesh.position.set(b.x, b.y, b.z);
+  }
 }
 
 /* ================= THREE.JS SAHNE KURULUMU ================= */
@@ -856,8 +1489,41 @@ scene.background = new THREE.Color(0x78a7ff);
 scene.fog = new THREE.FogExp2(0x78a7ff, 0.022);
 scene.add(chunkGroup);
 scene.add(mobGroup);
+const spitGroup = new THREE.Group();
+scene.add(spitGroup);
+const dropGroup = new THREE.Group();
+scene.add(dropGroup);
 
 const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 120);
+scene.add(camera);
+
+// Elde tutulan blok (seçili hotbar slotu)
+const heldGroup = new THREE.Group();
+heldGroup.position.set(0.3, -0.27, -0.5);
+heldGroup.rotation.set(0.25, -0.5, 0.05);
+camera.add(heldGroup);
+const heldMesh = new THREE.Mesh(sharedBoxGeo, BLOCKS[1].mat);
+heldMesh.scale.setScalar(0.22);
+heldGroup.add(heldMesh);
+let heldId = 1;
+// Sol elde kalkan
+const shieldMesh = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.42, 0.05), BLOCKS[6].mat);
+shieldMesh.position.set(-0.32, -0.25, -0.5);
+shieldMesh.rotation.set(0.1, 0.4, 0);
+shieldMesh.visible = false;
+camera.add(shieldMesh);
+function updateHeld(){
+  shieldMesh.visible = equip.offhand === 45;
+  const id = hotbarSlots[activeSlotIdx];
+  if(!BLOCKS[id]){ heldMesh.visible = false; return; }
+  heldMesh.visible = (gameMode !== 'survival') || invCount(id) > 0; // Envanterde yoksa elde görünmez
+  if(id === heldId) return;
+  heldId = id;
+  heldMesh.material = BLOCKS[id].mat;
+  const isItem = !!BLOCKS[id].isItem;
+  heldMesh.geometry = isItem ? itemPlaneGeo : sharedBoxGeo;
+  heldMesh.scale.setScalar(isItem ? 0.45 : 0.22);
+}
 const renderer = new THREE.WebGLRenderer({canvas: $('c'), antialias: false, powerPreference: 'high-performance'});
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -895,6 +1561,7 @@ function initPlayerPosition(){
   const sh = terrainHeight(8, 8);
   player.y = Math.max(sh, SEA_LEVEL) + 2.5;
 }
+renderHearts();
 initPlayerPosition();
 
 function collide(px, py, pz){
@@ -907,7 +1574,7 @@ function collide(px, py, pz){
     for(let z = minZ; z <= maxZ; z++){
       for(let y = minY; y <= maxY; y++){
         const b = getBlock(x, y, z);
-        if(b > 0 && b !== 13) return true; // Su içinden geçilebilir
+        if(b > 0 && b !== 13 && b !== 24) return true; // Su ve lav içinden geçilebilir
       }
     }
   }
@@ -926,6 +1593,9 @@ window.addEventListener('keydown', e => {
   }
   if(e.code === 'KeyM'){
     toggleGameMode();
+  }
+  if(e.code === 'KeyE'){
+    toggleCraft();
   }
 });
 window.addEventListener('keyup', e => { keys[e.code] = false; });
@@ -948,10 +1618,16 @@ document.addEventListener('mousemove', e => {
 
 window.addEventListener('mousedown', e => {
   if(!isLocked || $('invModal').style.display === 'flex') return;
-  if(e.button === 0) mineTarget();
-  else if(e.button === 2) placeTarget();
+  if(e.button === 0){
+    if(!tryAttack()) mineTarget(); // Önce yaratığa vur, yoksa blok kır
+  }
+  else if(e.button === 2){
+    if(!tryEat()) placeTarget(); // Yiyecek seçiliyse ye, değilse blok koy
+  }
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('mousedown', e => { if(e.button === 2) rmbHeld = true; });
+window.addEventListener('mouseup', e => { if(e.button === 2) rmbHeld = false; });
 
 let isTouchDevice = false;
 let touchLookId = null, lastTouchX = 0, lastTouchY = 0;
@@ -1006,22 +1682,48 @@ $('btnPlace').addEventListener('touchstart', e => { e.preventDefault(); placeTar
 const hotbarSlots = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 let activeSlotIdx = 0;
 
+// Canvas cloneNode piksel içeriğini kopyalamaz; ikonu çizerek kopyalıyoruz
+function copyIcon(src){
+  const c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height;
+  c.getContext('2d').drawImage(src, 0, 0);
+  return c;
+}
+
 function renderHotbar(){
   const hb = $('hotbar');
   hb.innerHTML = '';
+  // Survival: sahip olunmayan slotlar, sahip olunan eşyalarla doldurulur (boşsa 0)
+  if(gameMode === 'survival'){
+    const owned = Object.keys(inv).map(Number).sort((a, b) => a - b);
+    hotbarSlots.forEach((id, i) => {
+      if(invCount(id) > 0) return;
+      const next = owned.find(o => !hotbarSlots.includes(o));
+      hotbarSlots[i] = (next !== undefined) ? next : 0;
+    });
+  } else {
+    hotbarSlots.forEach((id, i) => { if(!BLOCKS[id]) hotbarSlots[i] = i + 1; });
+  }
   hotbarSlots.forEach((id, idx) => {
     const s = document.createElement('div');
     s.className = 'slot' + (idx === activeSlotIdx ? ' active' : '');
-    const cv = BLOCKS[id].icon;
-    s.appendChild(cv.cloneNode ? cv.cloneNode(true) : cv);
+    const cv = BLOCKS[id] ? BLOCKS[id].icon : null;
+    if(cv && (gameMode !== 'survival' || invCount(id) > 0)) s.appendChild(copyIcon(cv));
     const n = document.createElement('span');
     n.className = 'num';
     n.textContent = idx + 1;
     s.appendChild(n);
+    if(gameMode === 'survival' && id > 0){
+      const c = document.createElement('span');
+      c.style.cssText = 'position:absolute;top:0;left:2px;font:9px monospace;color:#fff;text-shadow:1px 1px 0 #000';
+      c.textContent = invCount(id);
+      s.appendChild(c);
+    }
     s.onclick = () => selectSlot(idx);
     hb.appendChild(s);
   });
-  $('blockName').textContent = BLOCKS[hotbarSlots[activeSlotIdx]].name;
+  const act = BLOCKS[hotbarSlots[activeSlotIdx]];
+  $('blockName').textContent = act ? act.name : '—';
 }
 function selectSlot(idx){
   activeSlotIdx = idx;
@@ -1047,19 +1749,187 @@ function toggleInventory(force){
 }
 $('invToggleBtn').onclick = () => toggleInventory();
 
+/* ================= ÜRETİM MENÜSÜ (E) ================= */
+const RECIPES = [
+  { out: 6, n: 4, inp: {5: 1} },                                  // Odun -> Tahta
+  { out: 32, n: 4, inp: {6: 2} },                                 // Tahta -> Çubuk
+  { out: 40, n: 1, inp: {6: 4} },                                 // Tahta -> Çalışma Masası
+  { out: 33, n: 1, inp: {6: 3, 32: 2}, table: true },             // Kazma
+  { out: 34, n: 1, inp: {6: 2, 32: 1}, table: true },             // Kılıç
+  { out: 25, n: 1, inp: {4: 8}, table: true },                    // Ocak
+  { out: 35, n: 1, inp: {30: 1, 28: 1}, furnace: true },          // Demir külçesi (eritme)
+  { out: 37, n: 1, inp: {36: 1}, furnace: true },                 // Pişmiş et (pişirme)
+  { out: 42, n: 1, inp: {4: 3, 32: 2}, table: true },             // Taş kazma
+  { out: 43, n: 1, inp: {35: 3, 32: 2}, table: true },            // Demir kazma
+  { out: 44, n: 1, inp: {29: 3, 32: 2}, table: true },            // Elmas kazma
+  { out: 38, n: 1, inp: {35: 8}, table: true },                   // Demir zırh
+  { out: 45, n: 1, inp: {6: 6, 35: 1}, table: true },             // Kalkan
+];
+const craftModal = document.createElement('div');
+craftModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:30;padding:12px';
+craftModal.innerHTML = '<div style="background:#181c24;border:2px solid #555;border-radius:12px;width:min(420px,94vw);max-height:85vh;overflow:auto;padding:14px;color:#f6f1e7;font-family:system-ui,sans-serif">' +
+  '<h3 style="margin:0 0 10px;font-size:15px;color:#ffaa00">🔨 Üretim <span style="font-size:11px;color:#a9b2bf">(E ile kapat)</span></h3><div id="craftList"></div></div>';
+(document.body || document.documentElement).appendChild(craftModal);
+
+function recipeText(r){
+  return Object.entries(r.inp).map(([id, c]) => `${BLOCKS[id].name} ×${c}`).join(' + ');
+}
+function renderCraft(){
+  const list = craftModal.querySelector('#craftList');
+  list.innerHTML = '';
+  const tableNear = nearBlock(40), furnaceNear = nearBlock(25);
+  for(const r of RECIPES){
+    const enough = gameMode === 'creative' || Object.entries(r.inp).every(([id, c]) => invCount(parseInt(id)) >= c);
+    const ok = enough && (!r.table || tableNear) && (!r.furnace || furnaceNear);
+    const btn = document.createElement('button');
+    btn.disabled = !ok;
+    btn.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px;padding:8px 10px;border-radius:7px;border:1px solid #555;background:' + (ok ? '#243044' : '#1a1d24') + ';color:' + (ok ? '#fff' : '#666') + ';font:13px system-ui,sans-serif;cursor:' + (ok ? 'pointer' : 'default');
+    let note = '';
+    if(r.table && !tableNear) note = ' (çalışma masası gerekli)';
+    if(r.furnace && !furnaceNear) note = ' (ocak gerekli)';
+    btn.textContent = `${BLOCKS[r.out].name} ×${r.n} ← ${recipeText(r)}${note}`;
+    btn.onclick = () => {
+      if(TOOL[r.out] && invCount(r.out) > 0){ toast('Bu aletten zaten var!'); return; }
+      if(gameMode === 'survival') for(const [id, c] of Object.entries(r.inp)) addItem(parseInt(id), -c);
+      if(TOOL[r.out]) delete toolDur[r.out];
+      addItem(r.out, r.n);
+      playSound('place');
+      renderCraft();
+    };
+    list.appendChild(btn);
+  }
+}
+function toggleCraft(force){
+  const show = (force !== undefined) ? force : (craftModal.style.display !== 'flex');
+  craftModal.style.display = show ? 'flex' : 'none';
+  if(show){ document.exitPointerLock?.(); renderCraft(); }
+}
+
+/* ================= KAYIT / YÜKLEME (localStorage) ================= */
+function readSave(){
+  try{
+    const raw = localStorage.getItem('orijinalMinecraft.save');
+    if(!raw) return null;
+    const d = JSON.parse(raw);
+    return (d && typeof d.seed === 'number' && Array.isArray(d.mods)) ? d : null;
+  } catch(e){ return null; }
+}
+function writeSave(){
+  try{
+    const mods = [];
+    for(const [k, id] of worldMods){ const [x, y, z] = k.split(',').map(Number); mods.push([x, y, z, id]); }
+    localStorage.setItem('orijinalMinecraft.save', JSON.stringify({
+      v: 1, seed: SEED, mods, inv, equip, hunger, hp: playerStats.hp, mode: gameMode, hotbar: hotbarSlots,
+      player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch }
+    }));
+  } catch(e){}
+}
+function applySavedState(){
+  if(!savedGame) return;
+  Object.assign(inv, savedGame.inv || {});
+  Object.assign(equip, savedGame.equip || {});
+  hunger = (typeof savedGame.hunger === 'number') ? savedGame.hunger : 20;
+  if(typeof savedGame.hp === 'number') playerStats.hp = savedGame.hp;
+  (savedGame.hotbar || []).forEach((v, i) => { if(i < hotbarSlots.length) hotbarSlots[i] = v; });
+  if(savedGame.player){
+    const p = savedGame.player;
+    player.x = p.x; player.y = p.y; player.z = p.z; player.yaw = p.yaw; player.pitch = p.pitch;
+  }
+  if(savedGame.mode === 'creative') toggleGameMode();
+  updateChunks();
+  renderHearts();
+  renderHotbar();
+}
+setInterval(writeSave, 10000);
+window.addEventListener('beforeunload', writeSave);
+
+/* ---- Envanter: karakter önizlemesi ve kuşanma yuvaları ---- */
+function drawFigure(c){
+  c.clearRect(0, 0, 90, 130);
+  const iron = '#cfd8e0';
+  c.fillStyle = '#e0b08a'; c.fillRect(35, 10, 20, 20);                          // Kafa
+  c.fillStyle = equip.armor === 38 ? iron : '#2288aa'; c.fillRect(28, 32, 34, 40); // Gövde
+  c.fillStyle = '#e0b08a'; c.fillRect(18, 34, 9, 36); c.fillRect(63, 34, 9, 36);   // Kollar
+  c.fillStyle = '#2c3558'; c.fillRect(32, 74, 12, 40); c.fillRect(46, 74, 12, 40); // Bacaklar
+  if(equip.offhand === 45){
+    c.fillStyle = '#8a5a2a'; c.fillRect(4, 40, 14, 30);
+    c.fillStyle = iron; c.fillRect(4, 40, 14, 3); c.fillRect(4, 67, 14, 3);
+  }
+}
+
+function equipSlot(key, label){
+  const id = equip[key];
+  const d = document.createElement('div');
+  d.className = 'invItem';
+  d.style.cssText = 'width:64px;height:58px';
+  d.title = id ? `${BLOCKS[id].name} (çıkarmak için tıkla)` : label;
+  if(id) d.appendChild(copyIcon(BLOCKS[id].icon));
+  const sp = document.createElement('span');
+  sp.textContent = id ? BLOCKS[id].name : label;
+  d.appendChild(sp);
+  d.onclick = () => { if(id) unequip(key); };
+  return d;
+}
+
+function renderEquip(){
+  let box = document.getElementById('equipBox');
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'equipBox';
+    box.style.cssText = 'display:flex;gap:12px;align-items:center;margin-bottom:12px';
+    $('invGrid').before(box);
+  }
+  box.innerHTML = '';
+  const fig = document.createElement('canvas');
+  fig.width = 90; fig.height = 130;
+  fig.style.cssText = 'background:#2a2f3a;border-radius:8px;border:1px solid #555;width:90px;height:130px';
+  drawFigure(fig.getContext('2d'));
+  box.appendChild(fig);
+  const slots = document.createElement('div');
+  slots.style.cssText = 'display:flex;flex-direction:column;gap:8px';
+  slots.appendChild(equipSlot('armor', 'Zırh'));
+  slots.appendChild(equipSlot('offhand', 'Sol El'));
+  box.appendChild(slots);
+}
+
+function equipItem(id){
+  const slot = EQUIP_SLOT[id];
+  if(equip[slot] === id){ unequip(slot); return; }
+  if(gameMode === 'survival'){
+    if(invCount(id) <= 0){ toast('Envanterinde yok!'); return; }
+    addItem(id, -1);
+  }
+  if(equip[slot]) unequip(slot);
+  equip[slot] = id;
+  toast(`${BLOCKS[id].name} kuşanıldı`);
+  playSound('place');
+  renderInventoryGrid();
+}
+
+function unequip(slot){
+  const id = equip[slot];
+  if(!id) return;
+  equip[slot] = 0;
+  if(gameMode === 'survival') addItem(id, 1);
+  renderInventoryGrid();
+}
+
 function renderInventoryGrid(){
+  renderEquip();
   const grid = $('invGrid');
   grid.innerHTML = '';
   for(const id in BLOCKS){
     const b = BLOCKS[id];
+    if(gameMode === 'survival' && invCount(parseInt(id)) <= 0) continue; // Survival: sadece sahip olunanlar
     const item = document.createElement('div');
     item.className = 'invItem';
-    const cv = b.icon.cloneNode ? b.icon.cloneNode(true) : b.icon;
+    const cv = copyIcon(b.icon);
     item.appendChild(cv);
     const label = document.createElement('span');
-    label.textContent = b.name;
+    label.textContent = (gameMode === 'survival') ? `${b.name} ×${invCount(parseInt(id))}` : b.name;
     item.appendChild(label);
     item.onclick = () => {
+      if(EQUIP_SLOT[parseInt(id)]){ equipItem(parseInt(id)); return; } // Zırh ve kalkan kuşanılır
       hotbarSlots[activeSlotIdx] = parseInt(id);
       renderHotbar();
       toast(`${b.name} seçildi! (Slot ${activeSlotIdx + 1})`);
@@ -1067,6 +1937,12 @@ function renderInventoryGrid(){
       toggleInventory(false);
     };
     grid.appendChild(item);
+  }
+  if(!grid.children.length){
+    const empty = document.createElement('p');
+    empty.style.cssText = 'grid-column:1/-1;color:#a9b2bf;margin:4px 0;font-size:13px';
+    empty.textContent = 'Envanter boş. Blok kır, yaratıkları yen veya üret (E).';
+    grid.appendChild(empty);
   }
 }
 
@@ -1110,8 +1986,33 @@ function updateRaycast(){
 function mineTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
+  const id = getBlock(x, y, z);
   setBlock(x, y, z, 0);
   playSound('break');
+  if(gameMode === 'survival'){
+    const drop = blockDrop(id);
+    if(drop) spawnDrop(x + 0.5, y + 0.5, z + 0.5, drop);
+  }
+}
+
+// Su koyulunca hava boşluklarına yayılır (en fazla 24 hücre, 4 blok yarıçap)
+function floodWater(sx, sy, sz){
+  if(getBlock(sx, sy, sz) !== 0) return;
+  const q = [[sx, sy, sz]], seen = new Set([`${sx},${sy},${sz}`]);
+  let n = 0;
+  while(q.length && n < 24){
+    const [x, y, z] = q.shift();
+    setBlock(x, y, z, 13);
+    n++;
+    for(const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,0,1],[0,0,-1],[0,-1,0]]){
+      const nx = x + dx, ny = y + dy, nz = z + dz, k = `${nx},${ny},${nz}`;
+      if(seen.has(k) || Math.abs(nx - sx) > 4 || Math.abs(nz - sz) > 4) continue;
+      if(getBlock(nx, ny, nz) !== 0) continue;
+      seen.add(k);
+      q.push([nx, ny, nz]);
+    }
+  }
+  playSound('place');
 }
 
 function placeTarget(){
@@ -1126,6 +2027,12 @@ function placeTarget(){
     return;
   }
   const id = hotbarSlots[activeSlotIdx];
+  if(id === 13){ floodWater(x, y, z); return; } // Su: kova gibi, yayılır (sınırsız)
+  if(!isPlaceable(id)) return;
+  if(gameMode === 'survival'){
+    if(invCount(id) <= 0){ toast('Bu bloktan envanterinde yok!'); return; }
+    addItem(id, -1);
+  }
   setBlock(x, y, z, id);
   playSound('place');
 }
@@ -1177,11 +2084,20 @@ function animate(now){
 
   // Canlıları güncelle
   updateMobs(dt, isNight);
+  updateDrops(dt);
+  updateSurvival(dt);
+
+  // Lava içinde durmak hasar verir
+  if(getBlock(Math.floor(player.x), Math.floor(player.y + 0.5), Math.floor(player.z)) === 24){
+    damagePlayer(1);
+  }
 
   // Hareket
   const forward = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
   const strafe = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
-  const speed = (gameMode === 'creative') ? 8.5 : 5.2;
+  // Shift basılı + ileri (W): hayatta kalma modunda koşma (yemek daha hızlı biter)
+  isSprinting = gameMode === 'survival' && (keys['ShiftLeft'] || keys['ShiftRight']) && forward > 0;
+  const speed = ((gameMode === 'creative') ? 8.5 : (isSprinting ? 7.4 : 5.2)) * (inWater ? 0.6 : 1);
 
   let moveX = 0, moveZ = 0;
   if(forward !== 0 || strafe !== 0){
@@ -1192,6 +2108,9 @@ function animate(now){
     moveX = ((fx + sx) / len) * speed;
     moveZ = ((fz + sz) / len) * speed;
   }
+
+  // Gövde suda mı (bel hizası)
+  inWater = getBlock(Math.floor(player.x), Math.floor(player.y + 0.8), Math.floor(player.z)) === 13;
 
   // Zıplama & Yaratıcı Uçuş
   if(gameMode === 'creative'){
@@ -1204,19 +2123,28 @@ function animate(now){
       player.onGround = false;
       playSound('jump');
     }
-    player.vy -= 22 * dt;
+    if(inWater){
+      // Suda yavaş batar; Space ile yüzeye çıkılır
+      player.vy = keys['Space'] ? 2.2 : Math.max(player.vy - 3 * dt, -1.6);
+    } else {
+      player.vy -= 22 * dt;
+    }
   }
 
   // X & Z Çarpışma
   const nextX = player.x + moveX * dt;
-  if(!collide(nextX, player.y, player.z)) player.x = nextX;
+  if(!collide(nextX, player.y, player.z) && !mobBlocksPlayer(nextX, player.z)) player.x = nextX;
+  else tryStep(nextX, player.z);
   const nextZ = player.z + moveZ * dt;
-  if(!collide(player.x, player.y, nextZ)) player.z = nextZ;
+  if(!collide(player.x, player.y, nextZ) && !mobBlocksPlayer(player.x, nextZ)) player.z = nextZ;
+  else tryStep(player.x, nextZ);
 
   // Y Çarpışma
   const nextY = player.y + player.vy * dt;
   if(gameMode === 'creative'){
-    player.y = nextY;
+    // Yaratıcı modda da zeminin içine inilmez
+    if(!collide(player.x, nextY, player.z)) player.y = nextY;
+    else player.vy = 0;
   } else {
     if(collide(player.x, nextY, player.z)){
       if(player.vy < 0){
@@ -1246,8 +2174,10 @@ function animate(now){
   $('coords').textContent = `${player.x.toFixed(1)}, ${player.y.toFixed(1)}, ${player.z.toFixed(1)}`;
 
   updateRaycast();
+  updateHeld();
   renderer.render(scene, camera);
 }
+applySavedState();
 requestAnimationFrame(animate);
 
 window.addEventListener('resize', () => {
