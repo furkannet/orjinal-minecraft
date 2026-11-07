@@ -28,14 +28,25 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 #modeBtn{color:var(--mc-gold);border-color:var(--mc-gold)}
 #invToggleBtn{background:#1e3a52;border-color:var(--mc-blue);color:#fff}
 
-/* Pause / ESC Ana Menü */
-#pauseModal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:35;backdrop-filter:blur(4px)}
-#pauseCard{background:#26262b;border:3px solid #111;box-shadow:inset 2px 2px 0 #555,inset -2px -2px 0 #181818,0 12px 32px rgba(0,0,0,.8);border-radius:6px;width:min(360px,90vw);padding:18px;text-align:center}
-#pauseCard h2{margin:0 0 14px;color:#fff;font-size:17px;text-shadow:2px 2px 0 #000;letter-spacing:1px}
+/* Pause / ESC Menü ve Alt Pencereler */
+.pauseModalStyle,#pauseModal{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;align-items:center;justify-content:center;z-index:45;backdrop-filter:blur(5px)}
+#pauseCard,.subModalCard{background:#26262b;border:3px solid #111;box-shadow:inset 2px 2px 0 #555,inset -2px -2px 0 #181818,0 12px 32px rgba(0,0,0,.8);border-radius:6px;width:min(380px,92vw);padding:18px;text-align:center;color:#fff}
+#pauseCard h2,.subModalCard h3{margin:0 0 14px;color:#fff;font-size:17px;text-shadow:2px 2px 0 #000;letter-spacing:1px}
 .mcMenuBtnGroup{display:flex;flex-direction:column;gap:8px}
 .mcMenuBtn{background:#4a4a52;color:#fff;border:2px solid #111;box-shadow:inset 2px 2px 0 #777,inset -2px -2px 0 #282828;font-family:inherit;font-weight:700;font-size:13px;padding:9px 12px;cursor:pointer;display:flex;justify-content:center;align-items:center;gap:6px;text-shadow:1px 1px 0 #000;user-select:none;transition:background .1s;border-radius:4px}
 .mcMenuBtn:hover{background:#5c5c66}
 .mcMenuBtn:active{transform:translateY(1px);box-shadow:inset -2px -2px 0 #777,inset 2px 2px 0 #282828}
+
+/* Ana Menü (Title Screen) */
+#mainMenu{position:fixed;inset:0;background:radial-gradient(circle at center, rgba(30,30,35,.82) 0%, rgba(10,12,18,.96) 100%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:60;backdrop-filter:blur(6px);padding:20px}
+#mainMenu.hidden{display:none}
+#titleBox{position:relative;margin-bottom:30px;text-align:center}
+#mainLogo{font-family:'Courier New',monospace;font-size:clamp(32px, 8vw, 54px);font-weight:900;letter-spacing:4px;color:#c6c6c6;text-shadow:4px 4px 0 #3f3f3f, 6px 6px 0 #111;user-select:none}
+#splashText{position:absolute;right:-18px;bottom:-12px;font-size:14px;font-weight:bold;color:#ffff55;text-shadow:2px 2px 0 #3f3f00;transform:rotate(-15deg);animation:splashAnim 1s ease-in-out infinite alternate;white-space:nowrap;user-select:none}
+@keyframes splashAnim{from{transform:rotate(-15deg) scale(0.96)}to{transform:rotate(-15deg) scale(1.08)}}
+.titleButtonGroup{display:flex;flex-direction:column;gap:9px;width:min(340px, 88vw)}
+.titleBtnRow{display:flex;gap:8px}
+.titleBtnRow .mcMenuBtn{flex:1}
 
 /* Hasar kırmızı flaşı */
 #hurtFlash{position:fixed;inset:0;background:rgba(255,0,0,.35);opacity:0;pointer-events:none;transition:opacity .15s;z-index:9}
@@ -125,7 +136,79 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   </div>
 </div>
 
-<!-- ESC / Ana Menü -->
+<!-- ANA MENÜ (TITLE SCREEN) -->
+<div id="mainMenu">
+  <div id="titleBox">
+    <div id="mainLogo">MINECRAFT</div>
+    <div id="splashText">Türkçe Sürüm!</div>
+  </div>
+
+  <div class="titleButtonGroup">
+    <button class="mcMenuBtn" onclick="startSingleplayer()" style="font-size:15px;padding:12px">⚔️ Tek Oyunculu (Singleplayer)</button>
+    <button class="mcMenuBtn" onclick="openMultiplayerModal()" style="font-size:14px;padding:11px">🌐 Çok Oyunculu (Multiplayer)</button>
+    <div class="titleBtnRow">
+      <button class="mcMenuBtn" onclick="openCharacterModal()">👤 Karakter</button>
+      <button class="mcMenuBtn" onclick="openSettingsModal()">⚙️ Ayarlar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Karakter Seçim Penceresi -->
+<div id="charModal" class="pauseModalStyle">
+  <div class="subModalCard">
+    <h3>👤 Karakter Seçimi</h3>
+    <div style="display:flex;justify-content:center;margin-bottom:14px">
+      <canvas id="menuCharCanvas" width="90" height="130" style="background:#1e232d;border:2px solid #555;border-radius:8px"></canvas>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">
+      <button class="mcMenuBtn" onclick="selectSkin('steve')">Steve</button>
+      <button class="mcMenuBtn" onclick="selectSkin('alex')">Alex</button>
+      <button class="mcMenuBtn" onclick="selectSkin('knight')">Şövalye</button>
+      <button class="mcMenuBtn" onclick="selectSkin('donerci')">Dönerci</button>
+    </div>
+    <button class="mcMenuBtn" onclick="closeSubModal('charModal')" style="width:100%">Tamam</button>
+  </div>
+</div>
+
+<!-- Çok Oyunculu Penceresi -->
+<div id="multiModal" class="pauseModalStyle">
+  <div class="subModalCard">
+    <h3>🌐 Çok Oyunculu Sunucular</h3>
+    <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:12px;text-align:left">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-weight:bold;margin-bottom:4px">
+        <span>📶 Yerel Ağ (LAN Dünyası)</span>
+        <span style="color:#4ade80;font-size:12px">● Açık</span>
+      </div>
+      <div style="font-size:11px;color:#aaa">Diğer oyuncular aynı ağ üzerinden katılabilir.</div>
+    </div>
+    <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:14px;text-align:left">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-weight:bold;margin-bottom:4px">
+        <span>🌍 Türkiye Topluluk Sunucusu</span>
+        <span style="color:#fbbf24;font-size:12px">● Yakında</span>
+      </div>
+      <div style="font-size:11px;color:#aaa">Çevrimiçi çok oyunculu sunucu yakında eklenecek.</div>
+    </div>
+    <div class="titleBtnRow">
+      <button class="mcMenuBtn" onclick="startSingleplayer();closeSubModal('multiModal')" style="flex:1">Dünyaya Katıl</button>
+      <button class="mcMenuBtn" onclick="closeSubModal('multiModal')" style="flex:1">Kapat</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ayarlar Penceresi -->
+<div id="settingsModal" class="pauseModalStyle">
+  <div class="subModalCard">
+    <h3>⚙️ Oyun Ayarları</h3>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
+      <button class="mcMenuBtn" onclick="toggleGameMode()">🎮 Oyun Modu: <span id="settingModeSpan" style="color:var(--mc-gold)">Hayatta Kalma</span></button>
+      <button class="mcMenuBtn" onclick="toggleKeepInv()">🛡️ Envanteri Koru: <span id="settingKeepInvSpan" style="color:#4ade80">Açık</span></button>
+      <button class="mcMenuBtn" onclick="toggleSoundSetting()">🔊 Ses: <span id="settingSoundSpan" style="color:#4ade80">Açık</span></button>
+    </div>
+    <button class="mcMenuBtn" onclick="closeSubModal('settingsModal')" style="width:100%">Kaydet ve Kapat</button>
+  </div>
+</div>
+
+<!-- ESC / Oyun İçi Menü -->
 <div id="pauseModal">
   <div id="pauseCard">
     <h2>🎮 Oyun Menüsü</h2>
@@ -135,6 +218,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
       <button id="btnKeepInv" class="mcMenuBtn" onclick="toggleKeepInv()">🛡️ Envanteri Koru: <span id="pauseKeepInvSpan" style="color:#4ade80">Açık</span></button>
       <button id="btnRespawn" class="mcMenuBtn" onclick="respawnPlayer();togglePauseMenu(false)">🔄 Yeniden Doğ (Respawn)</button>
       <button id="btnSave" class="mcMenuBtn" onclick="writeSave();toast('💾 Oyun başarıyla kaydedildi!')">💾 Dünyayı Kaydet</button>
+      <button id="btnExitTitle" class="mcMenuBtn" onclick="returnToMainMenu()" style="background:#5c3535">🏠 Ana Menüye Dön</button>
     </div>
   </div>
 </div>
@@ -155,7 +239,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.8';
+const APP_VERSION = 'v0.1.9';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -174,7 +258,9 @@ function getAudio(){
   if(audioCtx.state === 'suspended') audioCtx.resume();
   return audioCtx;
 }
+let soundEnabled = true;
 function playSound(type){
+  if(!soundEnabled) return;
   try {
     const ctx = getAudio();
     const t = ctx.currentTime;
@@ -573,6 +659,7 @@ for(const k in BLOCKS){
 let gameMode = 'survival'; // 'survival' veya 'creative'
 let keepInventory = true;  // Ölünce envanteri koruma
 let isPaused = false;
+let inMainMenu = true;     // Başlangıçta ana menü açık
 
 function updatePauseMenuUI(){
   if($('pauseModeSpan')){
@@ -583,6 +670,72 @@ function updatePauseMenuUI(){
     $('pauseKeepInvSpan').textContent = keepInventory ? 'Açık' : 'Kapalı';
     $('pauseKeepInvSpan').style.color = keepInventory ? '#4ade80' : '#ef4444';
   }
+  updateSettingsUI();
+}
+
+function updateSettingsUI(){
+  if($('settingModeSpan')){
+    $('settingModeSpan').textContent = (gameMode === 'creative') ? 'Yaratıcı' : 'Hayatta Kalma';
+    $('settingModeSpan').style.color = (gameMode === 'creative') ? 'var(--mc-blue)' : 'var(--mc-gold)';
+  }
+  if($('settingKeepInvSpan')){
+    $('settingKeepInvSpan').textContent = keepInventory ? 'Açık' : 'Kapalı';
+    $('settingKeepInvSpan').style.color = keepInventory ? '#4ade80' : '#ef4444';
+  }
+  if($('settingSoundSpan')){
+    $('settingSoundSpan').textContent = soundEnabled ? 'Açık' : 'Kapalı';
+    $('settingSoundSpan').style.color = soundEnabled ? '#4ade80' : '#ef4444';
+  }
+}
+
+function toggleSoundSetting(){
+  soundEnabled = !soundEnabled;
+  updateSettingsUI();
+  toast(soundEnabled ? '🔊 Ses: Açık' : '🔇 Ses: Kapalı');
+}
+
+function startSingleplayer(){
+  inMainMenu = false;
+  $('mainMenu').classList.add('hidden');
+  closeSubModal('charModal');
+  closeSubModal('multiModal');
+  closeSubModal('settingsModal');
+  if(!isTouchDevice && $('invModal').style.display !== 'flex'){
+    $('c').requestPointerLock();
+  }
+  toast('🎮 Dünya yüklendi! İyi oyunlar.');
+}
+
+function returnToMainMenu(){
+  writeSave();
+  togglePauseMenu(false);
+  inMainMenu = true;
+  $('mainMenu').classList.remove('hidden');
+  if(document.pointerLockElement) document.exitPointerLock();
+}
+
+function openCharacterModal(){
+  const modal = $('charModal');
+  if(!modal) return;
+  modal.style.display = 'flex';
+  const cv = $('menuCharCanvas');
+  if(cv) drawFigure(cv.getContext('2d'), selectedSkin);
+}
+
+function openMultiplayerModal(){
+  const el = $('multiModal');
+  if(el) el.style.display = 'flex';
+}
+
+function openSettingsModal(){
+  const el = $('settingsModal');
+  if(el) el.style.display = 'flex';
+  updateSettingsUI();
+}
+
+function closeSubModal(id){
+  const el = $(id);
+  if(el) el.style.display = 'none';
 }
 
 function toggleKeepInv(){
@@ -592,6 +745,7 @@ function toggleKeepInv(){
 }
 
 function togglePauseMenu(show){
+  if(inMainMenu) return;
   if(show === undefined) show = !isPaused;
   isPaused = show;
   const modal = $('pauseModal');
@@ -1696,12 +1850,19 @@ const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
   if(e.code === 'Escape'){
+    if(inMainMenu){
+      closeSubModal('charModal');
+      closeSubModal('multiModal');
+      closeSubModal('settingsModal');
+      return;
+    }
     if($('invModal').style.display === 'flex'){
       toggleInventory(false);
     } else {
       togglePauseMenu();
     }
   }
+  if(inMainMenu) return;
   if(e.code >= 'Digit1' && e.code <= 'Digit9'){
     selectSlot(parseInt(e.code.replace('Digit','')) - 1);
   }
@@ -1719,25 +1880,25 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 let isLocked = false;
 $('c').addEventListener('click', () => {
-  if(!isLocked && !isTouchDevice && !isPaused && $('invModal').style.display !== 'flex'){
+  if(!isLocked && !isTouchDevice && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex'){
     $('c').requestPointerLock();
   }
 });
 document.addEventListener('pointerlockchange', () => {
   isLocked = document.pointerLockElement === $('c');
-  if(!isLocked && !isTouchDevice && $('invModal').style.display !== 'flex' && !isPaused){
+  if(!isLocked && !isTouchDevice && !inMainMenu && $('invModal').style.display !== 'flex' && !isPaused){
     togglePauseMenu(true);
   }
 });
 document.addEventListener('mousemove', e => {
-  if(!isLocked || isPaused || $('invModal').style.display === 'flex') return;
+  if(!isLocked || inMainMenu || isPaused || $('invModal').style.display === 'flex') return;
   player.yaw -= e.movementX * 0.0024;
   player.pitch -= e.movementY * 0.0024;
   player.pitch = Math.max(-Math.PI/2 + 0.05, Math.min(Math.PI/2 - 0.05, player.pitch));
 });
 
 window.addEventListener('mousedown', e => {
-  if(!isLocked || isPaused || $('invModal').style.display === 'flex') return;
+  if(!isLocked || inMainMenu || isPaused || $('invModal').style.display === 'flex') return;
   if(e.button === 0){
     if(!tryAttack()) mineTarget(); // Önce yaratığa vur, yoksa blok kır
   }
@@ -1966,15 +2127,55 @@ function applySavedState(){
 setInterval(writeSave, 10000);
 window.addEventListener('beforeunload', writeSave);
 
-/* ---- Envanter: karakter önizlemesi ve kuşanma yuvaları ---- */
-function drawFigure(c){
+/* ---- Karakter Kostümleri ve Çizimi ---- */
+let selectedSkin = localStorage.getItem('orijinalMinecraft.skin') || 'steve';
+
+const SKINS = {
+  steve:   { name: 'Steve', shirt: '#2288aa', pants: '#2c3558', hair: '#4e3018', skin: '#e0b08a' },
+  alex:    { name: 'Alex', shirt: '#5b8731', pants: '#4e3825', hair: '#b05e26', skin: '#e5b894' },
+  knight:  { name: 'Şövalye', shirt: '#a4b0bd', pants: '#636e78', hair: '#222222', skin: '#cfd8e0' },
+  donerci: { name: 'Dönerci', shirt: '#d92626', pants: '#222222', hair: '#1a1a1a', skin: '#deb887' }
+};
+
+function selectSkin(skinName){
+  selectedSkin = skinName;
+  localStorage.setItem('orijinalMinecraft.skin', skinName);
+  const cv = $('menuCharCanvas');
+  if(cv) drawFigure(cv.getContext('2d'), selectedSkin);
+  const eqCv = document.querySelector('#equipBox canvas');
+  if(eqCv) drawFigure(eqCv.getContext('2d'), selectedSkin);
+  toast(`Karakter seçildi: ${SKINS[skinName].name}`);
+}
+
+function drawFigure(c, skin = selectedSkin){
+  if(!c) return;
   c.clearRect(0, 0, 90, 130);
+  const s = SKINS[skin] || SKINS.steve;
   const iron = '#cfd8e0';
-  c.fillStyle = '#e0b08a'; c.fillRect(35, 10, 20, 20);                          // Kafa
-  c.fillStyle = equip.armor === 38 ? iron : '#2288aa'; c.fillRect(28, 32, 34, 40); // Gövde
-  c.fillStyle = '#e0b08a'; c.fillRect(18, 34, 9, 36); c.fillRect(63, 34, 9, 36);   // Kollar
-  c.fillStyle = '#2c3558'; c.fillRect(32, 74, 12, 40); c.fillRect(46, 74, 12, 40); // Bacaklar
-  if(equip.offhand === 45){
+
+  // Kafa ve saç
+  c.fillStyle = s.skin; c.fillRect(35, 10, 20, 20);
+  c.fillStyle = s.hair; c.fillRect(35, 10, 20, 6);
+  // Gözler
+  c.fillStyle = '#ffffff'; c.fillRect(38, 18, 4, 3); c.fillRect(48, 18, 4, 3);
+  c.fillStyle = '#224488'; c.fillRect(40, 18, 2, 3); c.fillRect(50, 18, 2, 3);
+
+  // Gövde
+  c.fillStyle = (equip && equip.armor === 38) ? iron : s.shirt;
+  c.fillRect(28, 32, 34, 40);
+
+  // Kollar
+  c.fillStyle = (equip && equip.armor === 38) ? iron : s.skin;
+  c.fillRect(18, 34, 9, 36);
+  c.fillRect(63, 34, 9, 36);
+
+  // Bacaklar
+  c.fillStyle = (equip && equip.armor === 38) ? '#8899aa' : s.pants;
+  c.fillRect(32, 74, 12, 40);
+  c.fillRect(46, 74, 12, 40);
+
+  // Kalkan
+  if(equip && equip.offhand === 45){
     c.fillStyle = '#8a5a2a'; c.fillRect(4, 40, 14, 30);
     c.fillStyle = iron; c.fillRect(4, 40, 14, 3); c.fillRect(4, 67, 14, 3);
   }
@@ -2215,13 +2416,19 @@ function animate(now){
   updateSurvival(dt);
 
   // Lava içinde durmak hasar verir
-  if(getBlock(Math.floor(player.x), Math.floor(player.y + 0.5), Math.floor(player.z)) === 24){
+  if(!inMainMenu && getBlock(Math.floor(player.x), Math.floor(player.y + 0.5), Math.floor(player.z)) === 24){
     damagePlayer(1);
   }
 
-  // Hareket (Oyun duraklatılmamışsa)
-  const forward = isPaused ? 0 : (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
-  const strafe = isPaused ? 0 : (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+  // Ana menüdeyken yavaşça dönen Minecraft panoraması
+  if(inMainMenu){
+    player.yaw += dt * 0.12;
+    player.pitch = -0.05;
+  }
+
+  // Hareket (Oyun duraklatılmamışsa ve ana menüde değilsek)
+  const forward = (isPaused || inMainMenu) ? 0 : (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+  const strafe = (isPaused || inMainMenu) ? 0 : (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
   // Shift basılı + ileri (W): hayatta kalma modunda koşma (yemek daha hızlı biter)
   isSprinting = gameMode === 'survival' && (keys['ShiftLeft'] || keys['ShiftRight']) && forward > 0;
   const speed = ((gameMode === 'creative') ? 8.5 : (isSprinting ? 7.4 : 5.2)) * (inWater ? 0.6 : 1);
@@ -2240,7 +2447,7 @@ function animate(now){
   inWater = getBlock(Math.floor(player.x), Math.floor(player.y + 0.8), Math.floor(player.z)) === 13;
 
   // Zıplama & Yaratıcı Uçuş
-  if(isPaused){
+  if(isPaused || inMainMenu){
     player.vy = 0;
   } else if(gameMode === 'creative'){
     if(keys['Space']) player.vy = 6.0;
