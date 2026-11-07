@@ -130,7 +130,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.4';
+const APP_VERSION = 'v0.1.5';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -579,7 +579,8 @@ if(savedGame){
 }
 $('seedVal').textContent = SEED;
 
-const SEA_LEVEL = 7; // Deniz seviyesi
+const SEA_LEVEL = 82; // Deniz seviyesi
+const MAX_BUILD_HEIGHT = 150; // Yukarı çıkma ve blok koyma sınırı
 
 function hash2D(x, z){
   const n = Math.sin(x * 12.9898 + z * 78.233 + (SEED % 9999) * 0.137) * 43758.5453;
@@ -598,11 +599,11 @@ function terrainHeight(gx, gz){
   const n1 = smoothNoise(gx * 0.025, gz * 0.025) * 11;
   const n2 = smoothNoise(gx * 0.07, gz * 0.07) * 4.5;
   const n3 = smoothNoise(gx * 0.18, gz * 0.18) * 1.5;
-  return Math.floor(7 + n1 + n2 + n3);
+  return Math.floor(89 + n1 + n2 + n3);
 }
 
 /* ================= SONSUZ CHUNK VE KÖY SİSTEMİ ================= */
-const CHUNK_SIZE = 16, CHUNK_Y = 32;
+const CHUNK_SIZE = 16, CHUNK_Y = 160;
 const RENDER_DIST = 2;
 const chunks = new Map();
 const chunkGroup = new THREE.Group();
@@ -672,7 +673,7 @@ function buildDesertTemple(blocks, cx, cz){
     const d = Math.min(x - X0, X1 - x, z - X0, X1 - z);
     const top = baseY + d;
     const hCol = terrainHeight(cx * CHUNK_SIZE + x, cz * CHUNK_SIZE + z);
-    for(let y = 1; y <= Math.max(top, hCol); y++){
+    for(let y = baseY; y <= Math.max(top, hCol); y++){
       blocks[idxOf(x, y, z)] = (y <= top) ? 47 : 0; // Piramit dolgusu, fazla toprak temizlenir
     }
   }
@@ -687,14 +688,14 @@ function buildDesertTemple(blocks, cx, cz){
   }
 }
 
-const LAKE_LEVEL = 10; // Göllerin su seviyesi
-const LAVA_Y = 5;      // Bu seviyenin altındaki mağara boşlukları lavla dolar
+const LAKE_LEVEL = 86; // Göllerin su seviyesi
+const LAVA_Y = 16;     // Bu seviyenin altındaki mağara boşlukları lavla dolar
 
 // Yer altı mağaraları: tüneller ve büyük odalar (3B izlenimi veren 2B gürültü katmanları)
 function caveAt(gx, y, gz){
   const tunnel = smoothNoise(gx * 0.09 + y * 0.31, gz * 0.09 - y * 0.47);
   const chamber = smoothNoise(gx * 0.035 + y * 0.13 + 900, gz * 0.035 - y * 0.19 + 900);
-  return tunnel > 0.87 || (chamber > 0.91 && y < 24);
+  return tunnel > 0.87 || (chamber > 0.91 && y < 85);
 }
 
 function createChunk(cx, cz){
@@ -741,11 +742,11 @@ function createChunk(cx, cz){
         } else if(y >= h - 2){
           blocks[idx] = (h <= SEA_LEVEL || biome === 'desert') ? 8 : 2;
         } else {
-          // Madenler
+          // Madenler (89 blok derinlik)
           const oreRand = hash2D(gx * 3.7 + y * 1.3, gz * 2.9 + y * 7.1);
-          if(y <= 4 && oreRand > 0.94) blocks[idx] = 11; // Elmas
-          else if(y <= 8 && oreRand > 0.92) blocks[idx] = 16; // Altın
-          else if(oreRand > 0.88) blocks[idx] = 15; // Demir
+          if(y <= 24 && oreRand > 0.94) blocks[idx] = 11; // Elmas
+          else if(y <= 50 && oreRand > 0.92) blocks[idx] = 16; // Altın
+          else if(y <= 85 && oreRand > 0.88) blocks[idx] = 15; // Demir
           else if(oreRand > 0.82) blocks[idx] = 14; // Kömür
           else blocks[idx] = 3; // Taş
         }
@@ -1494,7 +1495,7 @@ scene.add(spitGroup);
 const dropGroup = new THREE.Group();
 scene.add(dropGroup);
 
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 120);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 180);
 scene.add(camera);
 
 // Elde tutulan blok (seçili hotbar slotu)
@@ -1811,6 +1812,7 @@ function readSave(){
     const raw = localStorage.getItem('orijinalMinecraft.save');
     if(!raw) return null;
     const d = JSON.parse(raw);
+    if(d && (d.v < 2 || d.CHUNK_Y !== CHUNK_Y)) return null;
     return (d && typeof d.seed === 'number' && Array.isArray(d.mods)) ? d : null;
   } catch(e){ return null; }
 }
@@ -1819,7 +1821,7 @@ function writeSave(){
     const mods = [];
     for(const [k, id] of worldMods){ const [x, y, z] = k.split(',').map(Number); mods.push([x, y, z, id]); }
     localStorage.setItem('orijinalMinecraft.save', JSON.stringify({
-      v: 1, seed: SEED, mods, inv, equip, hunger, hp: playerStats.hp, mode: gameMode, hotbar: hotbarSlots,
+      v: 2, CHUNK_Y, seed: SEED, mods, inv, equip, hunger, hp: playerStats.hp, mode: gameMode, hotbar: hotbarSlots,
       player: { x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch }
     }));
   } catch(e){}
@@ -1833,7 +1835,7 @@ function applySavedState(){
   (savedGame.hotbar || []).forEach((v, i) => { if(i < hotbarSlots.length) hotbarSlots[i] = v; });
   if(savedGame.player){
     const p = savedGame.player;
-    player.x = p.x; player.y = p.y; player.z = p.z; player.yaw = p.yaw; player.pitch = p.pitch;
+    player.x = p.x; player.y = Math.max(p.y, terrainHeight(p.x, p.z) + 2); player.z = p.z; player.yaw = p.yaw; player.pitch = p.pitch;
   }
   if(savedGame.mode === 'creative') toggleGameMode();
   updateChunks();
@@ -2018,6 +2020,10 @@ function floodWater(sx, sy, sz){
 function placeTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.place;
+  if(y >= MAX_BUILD_HEIGHT){
+    toast(`Yükseklik sınırına ulaşıldı! (Maks: ${MAX_BUILD_HEIGHT} blok)`);
+    return;
+  }
   const minX = player.x - player.radius, maxX = player.x + player.radius;
   const minZ = player.z - player.radius, maxZ = player.z + player.radius;
   const minY = player.y, maxY = player.y + player.height;
@@ -2158,6 +2164,11 @@ function animate(now){
       player.y = nextY;
       player.onGround = false;
     }
+  }
+
+  if(player.y > MAX_BUILD_HEIGHT){
+    player.y = MAX_BUILD_HEIGHT;
+    player.vy = Math.min(player.vy, 0);
   }
 
   if(player.y < -10){
