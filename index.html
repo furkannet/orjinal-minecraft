@@ -275,7 +275,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.33';
+const APP_VERSION = 'v0.1.34';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -650,29 +650,10 @@ Object.assign(BLOCKS, {
   49: { id: 49, name: 'Sandık', icon: chestTex.canvas, getMats: () => LM(chestTex.tex) }
 });
 
-/* ---- Skyblock adası: L şekli (geniş), 3 katman (alt taş, orta toprak, üst çim) ---- */
-// L şekli: üst kol x=4..8, z=4..6 (15 hücre); alt kol x=4..6, z=7..9 (9 hücre) → toplam 24 hücre
-const SKY_ISLAND_CELLS = [];
-for(let z = 4; z <= 6; z++) for(let x = 4; x <= 8; x++) SKY_ISLAND_CELLS.push([x, z]);
-for(let z = 7; z <= 9; z++) for(let x = 4; x <= 6; x++) SKY_ISLAND_CELLS.push([x, z]);
-// Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı)
+/* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
+// Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı). Oyuncu bu bloğun üstünde doğar (5.5, SKY_Y+1, 5.5).
 function skyIslandBlocks(){
-  const out = [];
-  for(const [x, z] of SKY_ISLAND_CELLS){
-    out.push([x, SKY_Y - 2, z, 3]);  // alt katman: taş
-    out.push([x, SKY_Y - 1, z, 2]);  // orta katman: toprak
-    out.push([x, SKY_Y, z, 1]);      // üst: çim
-  }
-  // Ağaç: gövde (8,91..93, z=6), üstünde 3x3 yapraklar (93..94)
-  for(let y = SKY_Y + 1; y <= SKY_Y + 3; y++) out.push([8, y, 6, 5]);
-  for(let y = SKY_Y + 3; y <= SKY_Y + 4; y++) for(let x = 7; x <= 9; x++) for(let z = 5; z <= 7; z++){
-    if(x === 8 && z === 6 && y === SKY_Y + 3) continue; // gövdenin yeri
-    out.push([x, y, z, 7]);
-  }
-  out.push([4, SKY_Y + 1, 8, 49]);  // sandık
-  out.push([6, SKY_Y + 1, 4, 13]);  // su (taş jeneratörü)
-  out.push([4, SKY_Y + 1, 4, 24]);  // lav (taş jeneratörü)
-  return out;
+  return [[5, SKY_Y, 5, 1]]; // tek çim bloğu
 }
 // Taş jeneratörü: su ile lavın arasındaki hücre boşsa taşa (kırıktaş) döner; kırılınca tekrar oluşur
 let skyGenT = 0;
