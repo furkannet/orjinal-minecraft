@@ -267,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.17';
+const APP_VERSION = 'v0.1.18';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -760,6 +760,7 @@ function openCharacterModal(){
   const modal = $('charModal');
   if(!modal) return;
   modal.style.display = 'flex';
+  syncMainMenu();
   const cv = $('menuCharCanvas');
   if(cv) drawFigure(cv.getContext('2d'), selectedSkin);
 }
@@ -767,17 +768,25 @@ function openCharacterModal(){
 function openMultiplayerModal(){
   const el = $('multiModal');
   if(el) el.style.display = 'flex';
+  syncMainMenu();
 }
 
 function openSettingsModal(){
   const el = $('settingsModal');
   if(el) el.style.display = 'flex';
   updateSettingsUI();
+  syncMainMenu();
 }
 
 function closeSubModal(id){
   const el = $(id);
   if(el) el.style.display = 'none';
+  syncMainMenu();
+}
+// Ana menü (logo dahil) z-index'i pencerelerin üstünde kaldığı için, bir alt pencere açıkken gizlenir
+function syncMainMenu(){
+  const anyOpen = ['charModal', 'multiModal', 'settingsModal'].some(id => $(id) && $(id).style.display === 'flex');
+  $('mainMenu').classList.toggle('hidden', !inMainMenu || anyOpen);
 }
 
 function toggleKeepInv(){
