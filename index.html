@@ -279,7 +279,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.44';
+const APP_VERSION = 'v0.1.45';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -652,6 +652,18 @@ const chestTex = makePixelTexture(cx => {
 });
 Object.assign(BLOCKS, {
   49: { id: 49, name: 'Sandık', icon: chestTex.canvas, getMats: () => LM(chestTex.tex) }
+});
+
+/* ---- Çit (50): çit direkleri ve yatay çubuklar; motor yalnızca küp çizdiği için tam blok olarak görünür ---- */
+const fenceTex = makePixelTexture(cx => {
+  cx.fillStyle = '#9c7a4a'; cx.fillRect(0, 0, 16, 16);          // açık tahta zemin
+  cx.fillStyle = '#8b6434'; cx.fillRect(0, 5, 16, 2); cx.fillRect(0, 11, 16, 2); // yatay çubuklar
+  cx.fillStyle = '#5a3a1a';
+  cx.fillRect(0, 0, 4, 16); cx.fillRect(12, 0, 4, 16);          // direkler
+  cx.fillStyle = '#6b4a24'; cx.fillRect(3, 0, 1, 16); cx.fillRect(12, 0, 1, 16);
+});
+Object.assign(BLOCKS, {
+  50: { id: 50, name: 'Çit', icon: fenceTex.canvas, getMats: () => LM(fenceTex.tex) }
 });
 
 /* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
@@ -2659,6 +2671,7 @@ const RECIPES = [
   { out: 44, n: 1, inp: {29: 3, 32: 2}, table: true },            // Elmas kazma
   { out: 38, n: 1, inp: {35: 8}, table: true },                   // Demir zırh
   { out: 45, n: 1, inp: {6: 6, 35: 1}, table: true },             // Kalkan
+  { out: 50, n: 3, inp: {6: 6, 32: 2}, table: true },             // Tahta -> Çit
 ];
 const craftModal = document.createElement('div');
 craftModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:30;padding:12px';
