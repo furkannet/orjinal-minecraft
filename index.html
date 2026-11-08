@@ -255,7 +255,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.10';
+const APP_VERSION = 'v0.1.11';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1776,6 +1776,16 @@ function updateDrops(dt){
 }
 
 // Bir blok yüksekliğindeki basamağa çıkma (suda veya yerdeyken, hayatta kalma modunda)
+// Ayaklarının altında her köşe için katı zemin var mı (eğilirken kenardan düşmeyi engeller)
+function groundUnder(px, pz){
+  const gy = Math.floor(player.y - 0.1), r = player.radius - 0.05;
+  for(const [ox, oz] of [[-r,-r],[r,-r],[-r,r],[r,r]]){
+    const b = getBlock(Math.floor(px + ox), gy, Math.floor(pz + oz));
+    if(!(b > 0 && b !== 13 && b !== 24)) return false;
+  }
+  return true;
+}
+
 function tryStep(nx, nz){
   if(gameMode !== 'survival' || !(player.onGround || inWater)) return;
   const target = Math.floor(player.y) + 1;
@@ -2623,7 +2633,10 @@ function animate(now){
   const strafe = (isPaused || inMainMenu) ? 0 : (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
   // Shift basılı + ileri (W): hayatta kalma modunda koşma (yemek daha hızlı biter)
   isSprinting = gameMode === 'survival' && (keys['ShiftLeft'] || keys['ShiftRight']) && forward > 0;
-  const speed = ((gameMode === 'creative') ? 8.5 : (isSprinting ? 7.4 : 5.2)) * (inWater ? 0.6 : 1);
+  // C tuşu (hayatta kalma): eğil. Yavaş yürür ve bloktan düşmez.
+  const sneaking = gameMode === 'survival' && keys['KeyC'] && player.onGround && !inWater;
+  if(sneaking) isSprinting = false;
+  const speed = ((gameMode === 'creative') ? 8.5 : (isSprinting ? 7.4 : (sneaking ? 1.6 : 5.2))) * (inWater ? 0.6 : 1);
 
   let moveX = 0, moveZ = 0;
   if(forward !== 0 || strafe !== 0){
@@ -2661,10 +2674,12 @@ function animate(now){
 
   // X & Z Çarpışma
   const nextX = player.x + moveX * dt;
-  if(!collide(nextX, player.y, player.z) && !mobBlocksPlayer(nextX, player.z)) player.x = nextX;
+  if(sneaking && !groundUnder(nextX, player.z)){ /* eğilmişken kenardan düşme */ }
+  else if(!collide(nextX, player.y, player.z) && !mobBlocksPlayer(nextX, player.z)) player.x = nextX;
   else tryStep(nextX, player.z);
   const nextZ = player.z + moveZ * dt;
-  if(!collide(player.x, player.y, nextZ) && !mobBlocksPlayer(player.x, nextZ)) player.z = nextZ;
+  if(sneaking && !groundUnder(player.x, nextZ)){ /* eğilmişken kenardan düşme */ }
+  else if(!collide(player.x, player.y, nextZ) && !mobBlocksPlayer(player.x, nextZ)) player.z = nextZ;
   else tryStep(player.x, nextZ);
 
   // Y Çarpışma
