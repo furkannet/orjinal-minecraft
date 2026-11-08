@@ -255,7 +255,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.14';
+const APP_VERSION = 'v0.1.15';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2528,7 +2528,16 @@ function floodWater(sx, sy, sz){
 
 function placeTarget(){
   if(!targetInfo) return;
-  const { x, y, z } = targetInfo.place;
+  let { x, y, z } = targetInfo.place;
+  // Eğilirken kenarda: baktığımız yönde, ayağımızın bir altındaki boş (veya su) hücreye koy.
+  // Minecraft'taki gibi kenardan aşağı blok döşenebilsin.
+  if(gameMode === 'survival' && keys['KeyC'] && player.onGround){
+    const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+    const cx = Math.floor(player.x + fx * 0.9), cz = Math.floor(player.z + fz * 0.9);
+    const cy = Math.floor(player.y) - 1;
+    const cb = cy >= 0 ? getBlock(cx, cy, cz) : -1;
+    if(cb === 0 || cb === 13){ x = cx; y = cy; z = cz; }
+  }
   if(y >= MAX_BUILD_HEIGHT){
     toast(`Yükseklik sınırına ulaşıldı! (Maks: ${MAX_BUILD_HEIGHT} blok)`);
     return;
