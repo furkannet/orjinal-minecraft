@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.52';
+const APP_VERSION = 'v0.1.53';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -727,6 +727,15 @@ Object.assign(BLOCKS, {
 /* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
 // Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı). Oyuncu bu bloğun üstünde doğar (5.5, SKY_Y+1, 5.5).
 function skyIslandBlocks(){
+  if(netMode && netRoomName === 'sky'){
+    // Çok oyunculu Skyblock: 3x3 alanda L şeklinde çim + L'nin ucunda bir ağaç
+    const out = [];
+    for(const [x, z] of [[5,5],[5,6],[5,7],[6,7],[7,7]]) out.push([x, SKY_Y, z, 1]);
+    for(let y = 1; y <= 3; y++) out.push([7, SKY_Y + y, 7, 5]); // gövde (odun)
+    for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
+    out.push([7, SKY_Y + 5, 7, 7]);
+    return out;
+  }
   return [[5, SKY_Y, 5, 1]]; // tek çim bloğu
 }
 // Taş jeneratörü: su ile lavın arasındaki hücre boşsa taşa (kırıktaş) döner; kırılınca tekrar oluşur
@@ -1081,6 +1090,7 @@ const MAX_BUILD_HEIGHT = 150; // Yukarı çıkma ve blok koyma sınırı
 let skyMode = false;
 // Çok oyuncu durumu (bkz. netConnect). netMode açıkken dünya sunucudan gelir ve yerel kayda yazılmaz.
 let netMode = false;
+let netRoomName = null; // bağlı olunan oda: 'sky' veya 'normal'
 const net = { ws: null, id: null, out: [], applying: false };
 const SKY_Y = 90;
 function resetWorld(sky, mods){
@@ -2462,6 +2472,7 @@ function netEnter(m){
   for(const pid of Array.from(netMeshes.keys())) netRemovePlayer(pid);
   net.id = m.id;
   netMode = true;
+  netRoomName = m.room;
   SEED = m.seed;
   $('seedVal').textContent = SEED;
   resetWorld(m.room === 'sky', m.mods);
