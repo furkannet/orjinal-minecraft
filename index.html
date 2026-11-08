@@ -268,7 +268,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.25';
+const APP_VERSION = 'v0.1.26';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2110,6 +2110,22 @@ const wireMat = new THREE.MeshBasicMaterial({color: 0x000000, wireframe: true, w
 const targetBox = new THREE.Mesh(boxGeo, wireMat);
 targetBox.visible = false;
 scene.add(targetBox);
+// Kırılma çatlakları: 10 aşama, her biri bir kez üretilen doküdan; tek ortak kutu (blok başına nesne yok)
+const crackMats = [];
+for(let s = 0; s < 10; s++){
+  const tex = makePixelTexture(cx => {
+    let seed = 1234 + s * 97;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    cx.fillStyle = 'rgba(0,0,0,0.75)';
+    const count = 3 + s * 4; // aşama ilerledikçe daha çok çatlak
+    for(let i = 0; i < count; i++) cx.fillRect((rnd() * 16) | 0, (rnd() * 16) | 0, 1, 1);
+    if(s > 4) for(let i = 0; i < s * 2; i++) cx.fillRect((rnd() * 16) | 0, (rnd() * 16) | 0, 1, 1);
+  });
+  crackMats.push(new THREE.MeshBasicMaterial({map: tex.tex, transparent: true, depthWrite: false}));
+}
+const crackMesh = new THREE.Mesh(BG(1.02, 1.02, 1.02), crackMats[0]);
+crackMesh.visible = false;
+scene.add(crackMesh);
 
 /* ================= OYUNCU VE FİZİK ================= */
 const player = {
@@ -2773,20 +2789,27 @@ let lmbHeld = false;
 const mine = { x: 0, y: 0, z: 0, t: 0, need: 1, active: false };
 function resetMining(){
   mine.active = false;
-  wireMat.color.setHex(0x000000);
+  crackMesh.visible = false;
 }
 function updateMining(dt){
   const ok = lmbHeld && targetInfo && isLocked && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex';
-  if(!ok){ if(mine.active) resetMining(); return; }
+  if(!ok || getBlock(targetInfo.hit.x, targetInfo.hit.y, targetInfo.hit.z) === 0){ resetMining(); return; }
   const h = targetInfo.hit;
   if(!mine.active || h.x !== mine.x || h.y !== mine.y || h.z !== mine.z){
-    mine.x = h.x; mine.y = h.y; mine.z = h.z; mine.t = 0; mine.active = true;
+    mine.x = h.x; mine.y = h.y; mine.z = h.z; mine.t = 0; mine.active = true; mine.stage = -1;
     mine.need = mineNeed(getBlock(h.x, h.y, h.z));
+    crackMesh.position.set(h.x + 0.5, h.y + 0.5, h.z + 0.5);
   }
   mine.t += dt;
   const p = mine.need > 0 ? Math.min(1, mine.t / mine.need) : 1;
   if(p >= 1){ breakTarget(); resetMining(); return; }
-  wireMat.color.setRGB(1, 1 - p, 1 - p); // ilerleme: beyazdan kırmızıya
+  // Çatlak aşaması yalnızca değişince güncellenir
+  const stage = Math.floor(p * 10);
+  if(stage !== mine.stage){
+    mine.stage = stage;
+    crackMesh.material = crackMats[stage];
+    crackMesh.visible = true;
+  }
 }
 
 function breakTarget(){
