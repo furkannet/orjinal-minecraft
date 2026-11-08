@@ -267,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.22';
+const APP_VERSION = 'v0.1.23';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -631,22 +631,16 @@ const BLOCKS = {
   26: { id: 26, name: 'Örs', icon: TEXTURES.anvil.canvas, getMats: () => LM(TEXTURES.anvil.tex) }
 };
 
-// Skyblock seviyeleri: tek bloğu kırmaya çalışınca sıradaki seviyenin ödülü gelir; elmas en sonda
-const SKY_LEVELS = [
-  [[1, 16]],                    // Çim
-  [[5, 16]],                    // Odun
-  [[3, 16]],                    // Taş
-  [[14, 8], [15, 8], [16, 8]],  // Kömür, demir ve altın cevheri
-  [[8, 16], [4, 16]],           // Kum ve kırıktaş
-  [[29, 3]]                     // Elmas (en son)
-];
+// Skyblock: ada hücresinde sırayla bloklar çıkar. Kırılan blok (tek adet) eline gelir,
+// yerine sıradaki blok gelir. Sıra: taş, çim, odun, ..., en sonda elmas. Bittikten sonra toprak kalır.
+const SKY_SEQ = [3, 1, 5, 4, 14, 15, 16, 8, 11]; // Taş, Çim, Odun, Kırıktaş, Kömür, Demir, Altın, Kum, Elmas
 let skyLevel = 0;
-// Başlangıç bloğu kırılmaz; her vuruşta sıradaki seviyenin ödülü envantere eklenir
-function skyBlockMined(){
-  if(skyLevel >= SKY_LEVELS.length){ toast('⭐ Tüm seviyeler tamamlandı!'); return; }
-  for(const [id, n] of SKY_LEVELS[skyLevel]) addItem(id, n);
+function skyCellBlock(){ return skyLevel < SKY_SEQ.length ? SKY_SEQ[skyLevel] : 2; }
+function skyBlockMined(id){
+  addItem(id, 1);
   skyLevel++;
-  toast(`⭐ Seviye ${skyLevel}/${SKY_LEVELS.length} ödülü geldi`);
+  setBlock(8, SKY_Y, 8, skyCellBlock());
+  toast(skyLevel < SKY_SEQ.length ? `⭐ Yeni blok: ${BLOCKS[skyCellBlock()].name}` : '⭐ Tüm bloklar tamam! Artık toprak kırabilirsin');
 }
 
 /* ---- Eşyalar (27-39, yerleştirilemez) ve çalışma masası (40) ---- */
@@ -2741,13 +2735,12 @@ function updateRaycast(){
 function mineTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
-  if(skyMode && x === 8 && y === SKY_Y && z === 8 && getBlock(x, y, z) === 3){ // Skyblock: taş kırılınca seviye ödülü gelir, yerine toprak kalır
-    skyBlockMined();
-    setBlock(x, y, z, 2);
+  const id = getBlock(x, y, z);
+  if(skyMode && x === 8 && y === SKY_Y && z === 8 && skyLevel < SKY_SEQ.length && id === SKY_SEQ[skyLevel]){ // Skyblock: sıradaki blok eline gelir
+    skyBlockMined(id);
     playSound('break');
     return;
   }
-  const id = getBlock(x, y, z);
   setBlock(x, y, z, 0);
   playSound('break');
   if(gameMode === 'survival'){
@@ -2967,7 +2960,7 @@ function animate(now){
 
   if(skyMode && player.y < SKY_Y - 20){ // Skyblock: adadan 20 blok aşağı düşünce başlangıç bloğuna geri ışınlan
     player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
-    if(getBlock(8, SKY_Y, 8) !== 3) setBlock(8, SKY_Y, 8, 3); // kırılmış olsa da başlangıç bloğu geri gelir
+    if(getBlock(8, SKY_Y, 8) !== skyCellBlock()) setBlock(8, SKY_Y, 8, skyCellBlock()); // ada hücresi sıradaki bloğa döner
   } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
     player.y = Math.max(h + 3, SEA_LEVEL + 3);
