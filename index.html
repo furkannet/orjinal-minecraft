@@ -255,7 +255,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.15';
+const APP_VERSION = 'v0.1.16';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -719,6 +719,7 @@ function toggleSoundSetting(){
 }
 
 function startSingleplayer(){
+  if(skyMode) resetWorld(false);
   inMainMenu = false;
   $('mainMenu').classList.add('hidden');
   closeSubModal('charModal');
@@ -813,6 +814,30 @@ $('seedVal').textContent = SEED;
 
 const SEA_LEVEL = 82; // Deniz seviyesi
 const MAX_BUILD_HEIGHT = 150; // Yukarı çıkma ve blok koyma sınırı
+// Skyblock: tek blokla başlayan gökyüzü dünyası (çok oyuncu "Giriş Yap" bunu açar)
+let skyMode = false;
+const SKY_Y = 90;
+function resetWorld(sky){
+  skyMode = sky;
+  for(const ch of chunks.values()){ disposeChunkMesh(ch); chunkGroup.remove(ch.group); }
+  chunks.clear(); dirtyChunks.clear(); _lastCh = null;
+  worldMods.clear(); modsByChunk.clear(); modsDirty = true; spawnedChunks.clear();
+  for(const m of mobs) mobGroup.remove(m.mesh);
+  mobs.length = 0;
+  if(sky){
+    player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
+    updateChunks(true);
+  } else {
+    initPlayerPosition();
+  }
+}
+function startSkyblock(){
+  resetWorld(true);
+  inMainMenu = false;
+  $('mainMenu').classList.add('hidden');
+  closeSubModal('charModal'); closeSubModal('multiModal'); closeSubModal('settingsModal');
+  toast('🏝️ Skyblock: tek blokla başla!');
+}
 
 function hash2D(x, z){
   const n = Math.sin(x * 12.9898 + z * 78.233 + (SEED % 9999) * 0.137) * 43758.5453;
@@ -827,7 +852,35 @@ function smoothNoise(x, z){
   const v01 = hash2D(ix, iz + 1), v11 = hash2D(ix + 1, iz + 1);
   return v00 + sx * (v10 - v00) + sz * (v01 + sx * (v11 - v01) - (v00 + sx * (v10 - v00)));
 }
+/* ---- 30 ada: tohuma göre sabit yerleşim (6 × 5 ızgara, başlangıç noktasında bir ada) ---- */
+let _islSeed = null, _islands = [];
+function islandsList(){
+  if(_islSeed === SEED) return _islands;
+  _islSeed = SEED; _islands = [];
+  for(let r = 0; r < 5; r++) for(let c = 0; c < 6; c++){
+    const i = r * 6 + c;
+    const center = (c === 2 && r === 2); // spawn noktası (8,8) bir adanın üstünde
+    const jx = center ? 0 : (hash2D(i * 3.1 + 0.5, 11.7) - 0.5) * 12;
+    const jz = center ? 0 : (hash2D(i * 5.3 + 0.2, 3.9) - 0.5) * 12;
+    _islands.push({ x: 8 + (c - 2) * 48 + jx, z: 8 + (r - 2) * 48 + jz, r: 7 + hash2D(i * 7.1, 2.3) * 4 });
+  }
+  return _islands;
+}
+// Ada yüksekliği (ada dışındaysa null)
+function islandHeightAt(gx, gz){
+  for(const isl of islandsList()){
+    const dx = gx - isl.x, dz = gz - isl.z;
+    const d = Math.sqrt(dx * dx + dz * dz);
+    if(d > isl.r) continue;
+    if(d > isl.r - 2) return SEA_LEVEL + 1;                       // kumsal
+    return SEA_LEVEL + 2 + Math.round(2 * (1 - d / isl.r));       // çimen tepe
+  }
+  return null;
+}
+
 function terrainHeight(gx, gz){
+  const isl = islandHeightAt(gx, gz);
+  if(isl !== null) return isl;
   const n1 = smoothNoise(gx * 0.025, gz * 0.025) * 11;
   const n2 = smoothNoise(gx * 0.07, gz * 0.07) * 4.5;
   const n3 = smoothNoise(gx * 0.18, gz * 0.18) * 1.5;
@@ -1010,6 +1063,13 @@ function createChunk(cx, cz){
   const blocks = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * CHUNK_Y);
   const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false, maxY: 0 };
   chunkGroup.add(ch.group);
+  if(skyMode){ // Skyblock: yalnızca başlangıç noktasında tek blok, gerisi boşluk
+    if(cx === 0 && cz === 0) blocks[8 + 8 * CHUNK_SIZE + SKY_Y * CHUNK_SIZE * CHUNK_SIZE] = 3;
+    const cmS = modsByChunk.get(key);
+    if(cmS) for(const [idx, id] of cmS) blocks[idx] = id;
+    ch.maxY = SKY_Y;
+    return ch;
+  }
   const firstTime = !spawnedChunks.has(key);
   spawnedChunks.add(key);
 
@@ -1033,7 +1093,7 @@ function createChunk(cx, cz){
       const canTree = !isVillageChunk && (biome === 'forest' || (biome === 'plains' && hash2D(gx * 1.3, gz * 1.7) > 0.95));
       const treeThresh = biome === 'forest' ? 0.92 : 0.99;
       // Göl: alçak arazide, gürültü değeri yüksekse su ile dolar
-      const inLake = h > SEA_LEVEL && h <= LAKE_LEVEL && smoothNoise(gx * 0.015 + 300, gz * 0.015 + 300) > 0.66;
+      const inLake = h > SEA_LEVEL && h <= LAKE_LEVEL && islandHeightAt(gx, gz) === null && smoothNoise(gx * 0.015 + 300, gz * 0.015 + 300) > 0.66;
 
       for(let y = 0; y <= h; y++){
         const idx = lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
@@ -1818,7 +1878,7 @@ function updateMobs(dt, isNight){
   updateSpit(dt);
 
   // Tükürükçü doğurma (gündüz de olabilir, en fazla 3)
-  if(gameMode === 'survival' && Math.random() < 0.004 && mobs.filter(m => m.type === 'spitter').length < 3){
+  if(gameMode === 'survival' && !skyMode && Math.random() < 0.004 && mobs.filter(m => m.type === 'spitter').length < 3){
     const angle = Math.random() * Math.PI * 2;
     const dist = 20 + Math.random() * 10;
     const sx = player.x + Math.cos(angle) * dist;
@@ -1828,7 +1888,7 @@ function updateMobs(dt, isNight){
   }
 
   // Gece olunca yakında zombi doğur
-  if(isNight && Math.random() < 0.008 && mobs.filter(m => m.type === 'zombie').length < 6){
+  if(isNight && !skyMode && Math.random() < 0.008 && mobs.filter(m => m.type === 'zombie').length < 6){
     const angle = Math.random() * Math.PI * 2;
     const dist = 14 + Math.random() * 10;
     const zx = player.x + Math.cos(angle) * dist;
@@ -2278,6 +2338,7 @@ function readSave(){
   } catch(e){ return null; }
 }
 function writeSave(){
+  if(skyMode) return;
   try{
     if(modsDirty){
       modsArrCache = [];
@@ -2715,7 +2776,9 @@ function animate(now){
     player.vy = Math.min(player.vy, 0);
   }
 
-  if(player.y < -10){
+  if(player.y < -10 && skyMode){
+    player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
+  } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
     player.y = Math.max(h + 3, SEA_LEVEL + 3);
     player.vy = 0;
