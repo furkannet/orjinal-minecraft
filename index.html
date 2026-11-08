@@ -275,7 +275,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.34';
+const APP_VERSION = 'v0.1.35';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -657,7 +657,13 @@ function skyIslandBlocks(){
 }
 // Taş jeneratörü: su ile lavın arasındaki hücre boşsa taşa (kırıktaş) döner; kırılınca tekrar oluşur
 let skyGenT = 0;
+// Ada bloğu kırılırsa 1 sn sonra geri gelir (tek oyunculu ve sunucu aynı)
+let skyRespawnT = 0;
 function skyGeneratorTick(dt){
+  if(getBlock(5, SKY_Y, 5) === 0){
+    skyRespawnT += dt;
+    if(skyRespawnT >= 1){ skyRespawnT = 0; setBlock(5, SKY_Y, 5, 1); }
+  } else skyRespawnT = 0;
   skyGenT += dt;
   if(skyGenT < 0.5) return;
   skyGenT = 0;
