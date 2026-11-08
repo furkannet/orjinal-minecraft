@@ -275,7 +275,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.36';
+const APP_VERSION = 'v0.1.37';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -659,11 +659,27 @@ function skyIslandBlocks(){
 let skyGenT = 0;
 // Ada bloğu kırılırsa 1 sn sonra geri gelir (tek oyunculu ve sunucu aynı)
 let skyRespawnT = 0;
+// Ara sıra adanın çevresinde taş ya da odun belirir (en fazla 10 adet; sayfa yenilenene kadar kalır)
+let skyExtraT = 0;
 function skyGeneratorTick(dt){
   if(getBlock(5, SKY_Y, 5) === 0){
     skyRespawnT += dt;
     if(skyRespawnT >= 1){ skyRespawnT = 0; setBlock(5, SKY_Y, 5, 1); }
   } else skyRespawnT = 0;
+  skyExtraT += dt;
+  if(skyExtraT >= 15){
+    skyExtraT = 0;
+    const cells = [];
+    let filled = 0;
+    for(let dx = -2; dx <= 2; dx++) for(let dz = -2; dz <= 2; dz++){
+      if(dx === 0 && dz === 0) continue;
+      if(getBlock(5 + dx, SKY_Y, 5 + dz) === 0) cells.push([5 + dx, 5 + dz]); else filled++;
+    }
+    if(cells.length && filled < 10){
+      const [x, z] = cells[Math.floor(Math.random() * cells.length)];
+      setBlock(x, SKY_Y, z, Math.random() < 0.5 ? 3 : 5); // taş veya odun
+    }
+  }
   skyGenT += dt;
   if(skyGenT < 0.5) return;
   skyGenT = 0;
@@ -938,11 +954,12 @@ function resetWorld(sky, mods){
   }
 }
 function startSkyblock(){
-  resetWorld(true);
+  const resumed = skyMode; // ada bellekte duruyorsa kaldığın yerden devam et (sayfa yenilenene kadar)
+  if(!resumed) resetWorld(true);
   inMainMenu = false;
   $('mainMenu').classList.add('hidden');
   closeSubModal('charModal'); closeSubModal('multiModal'); closeSubModal('settingsModal');
-  toast('🏝️ Skyblock: tek blokla başla!');
+  toast(resumed ? '🏝️ Skyblock: kaldığın yerden devam' : '🏝️ Skyblock: tek blokla başla!');
 }
 
 function hash2D(x, z){
