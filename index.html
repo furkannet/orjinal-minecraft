@@ -267,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.20';
+const APP_VERSION = 'v0.1.21';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -631,18 +631,8 @@ const BLOCKS = {
   26: { id: 26, name: 'Örs', icon: TEXTURES.anvil.canvas, getMats: () => LM(TEXTURES.anvil.tex) }
 };
 
-/* ---- Skyblock sandığı (48): sağ tıkla açılır, her açılışta sıradaki ödül gelir ---- */
-const chestTex = makePixelTexture(cx => {
-  cx.fillStyle = '#8b5a2b'; cx.fillRect(0, 0, 16, 16);
-  cx.fillStyle = '#5a3a1a'; cx.fillRect(0, 0, 16, 1); cx.fillRect(0, 15, 16, 1); cx.fillRect(0, 0, 1, 16); cx.fillRect(15, 0, 1, 16);
-  cx.fillRect(0, 7, 16, 1);
-  cx.fillStyle = '#d4af37'; cx.fillRect(7, 6, 2, 3);
-});
-Object.assign(BLOCKS, {
-  48: { id: 48, name: 'Sandık', icon: chestTex.canvas, getMats: () => LM(chestTex.tex) }
-});
-// Sandık ödülleri: her açılışta bir sonraki satır verilir; elmas en sonda
-const CHEST_REWARDS = [
+// Skyblock seviyeleri: tek bloğu kırmaya çalışınca sıradaki seviyenin ödülü gelir; elmas en sonda
+const SKY_LEVELS = [
   [[1, 16]],                    // Çim
   [[5, 16]],                    // Odun
   [[3, 16]],                    // Taş
@@ -650,12 +640,13 @@ const CHEST_REWARDS = [
   [[8, 16], [4, 16]],           // Kum ve kırıktaş
   [[29, 3]]                     // Elmas (en son)
 ];
-let chestStage = 0;
-function openChest(){
-  if(chestStage >= CHEST_REWARDS.length){ toast('📦 Sandık boş: tüm ödülleri aldın!'); return; }
-  for(const [id, n] of CHEST_REWARDS[chestStage]) addItem(id, n);
-  chestStage++;
-  toast(`📦 Sandıktan ödül geldi (${chestStage}/${CHEST_REWARDS.length})`);
+let skyLevel = 0;
+// Başlangıç bloğu kırılmaz; her vuruşta sıradaki seviyenin ödülü envantere eklenir
+function skyBlockMined(){
+  if(skyLevel >= SKY_LEVELS.length){ toast('⭐ Tüm seviyeler tamamlandı!'); return; }
+  for(const [id, n] of SKY_LEVELS[skyLevel]) addItem(id, n);
+  skyLevel++;
+  toast(`⭐ Seviye ${skyLevel}/${SKY_LEVELS.length} ödülü geldi`);
 }
 
 /* ---- Eşyalar (27-39, yerleştirilemez) ve çalışma masası (40) ---- */
@@ -883,7 +874,7 @@ function resetWorld(sky, mods){
   // Çok oyuncu: sunucudan gelen blok değişiklikleri [x,y,z,id,...] (chunk üretilmeden önce uygulanır)
   if(mods) for(let i = 0; i + 3 < mods.length; i += 4) recordMod(mods[i], mods[i+1], mods[i+2], mods[i+3]);
   if(sky){
-    chestStage = 0;
+    skyLevel = 0;
     player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
     updateChunks(true);
   } else {
@@ -1123,10 +1114,7 @@ function createChunk(cx, cz){
   const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false, maxY: 0 };
   chunkGroup.add(ch.group);
   if(skyMode){ // Skyblock: yalnızca başlangıç noktasında tek blok, gerisi boşluk
-    if(cx === 0 && cz === 0){
-      blocks[8 + 8 * CHUNK_SIZE + SKY_Y * CHUNK_SIZE * CHUNK_SIZE] = 3;  // başlangıç bloğu
-      blocks[9 + 8 * CHUNK_SIZE + SKY_Y * CHUNK_SIZE * CHUNK_SIZE] = 48; // sandık (yanında)
-    }
+    if(cx === 0 && cz === 0) blocks[8 + 8 * CHUNK_SIZE + SKY_Y * CHUNK_SIZE * CHUNK_SIZE] = 3; // başlangıç bloğu
     const cmS = modsByChunk.get(key);
     if(cmS) for(const [idx, id] of cmS) blocks[idx] = id;
     ch.maxY = SKY_Y;
@@ -1742,7 +1730,7 @@ function addItem(id, n){
   renderHotbar();
   if($('invModal').style.display === 'flex') renderInventoryGrid(); // Açıkken envanter canlı güncellensin
 }
-function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 48].includes(id); }
+function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47].includes(id); }
 function nearBlock(id, r = 4.5){
   const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
   for(let x = px - 4; x <= px + 4; x++) for(let y = py - 4; y <= py + 4; y++) for(let z = pz - 4; z <= pz + 4; z++){
@@ -2753,6 +2741,11 @@ function updateRaycast(){
 function mineTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
+  if(skyMode && x === 8 && y === SKY_Y && z === 8){ // Skyblock: başlangıç bloğu kırılmaz, seviye ödülü verir
+    skyBlockMined();
+    playSound('break');
+    return;
+  }
   const id = getBlock(x, y, z);
   setBlock(x, y, z, 0);
   playSound('break');
@@ -2784,7 +2777,6 @@ function floodWater(sx, sy, sz){
 
 function placeTarget(){
   if(!targetInfo) return;
-  if(getBlock(targetInfo.hit.x, targetInfo.hit.y, targetInfo.hit.z) === 48){ openChest(); return; }
   let { x, y, z } = targetInfo.place;
   // Eğilirken kenarda: baktığımız yönde, ayağımızın bir altındaki boş (veya su) hücreye koy.
   // Minecraft'taki gibi kenardan aşağı blok döşenebilsin.
