@@ -144,7 +144,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   </div>
 
   <div class="titleButtonGroup">
-    <button class="mcMenuBtn" onclick="startSingleplayer()" style="font-size:15px;padding:12px">⚔️ Tek Oyunculu (Singleplayer)</button>
+    <button class="mcMenuBtn" onclick="startSingleplayer()" style="font-size:15px;padding:12px">🏝️ Tek Oyunculu (Adalar Dünyası)</button>
     <button class="mcMenuBtn" onclick="openMultiplayerModal()" style="font-size:14px;padding:11px">🌐 Çok Oyunculu (Multiplayer)</button>
     <div class="titleBtnRow">
       <button class="mcMenuBtn" onclick="openCharacterModal()">👤 Karakter</button>
@@ -199,14 +199,6 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
         <div style="font-size:11px;color:#aaa">Aynı dünyada arkadaşlarınla blok kır ve koy.</div>
       </div>
       <button class="mcMenuBtn" onclick="netConnect('normal')" style="padding:6px 12px">Bağlan</button>
-    </div>
-
-    <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;text-align:left;display:flex;justify-content:space-between;align-items:center">
-      <div>
-        <div style="font-weight:bold">🏝️ Skyblock (çevrimdışı)</div>
-        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına L şeklinde ada.</div>
-      </div>
-      <button class="mcMenuBtn" onclick="startSkyblock();closeSubModal('multiModal')" style="padding:6px 12px">Oyna</button>
     </div>
 
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:14px;text-align:left">
@@ -279,7 +271,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.50';
+const APP_VERSION = 'v0.1.51';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -864,17 +856,13 @@ function toggleSoundSetting(){
   toast(soundEnabled ? '🔊 Ses: Açık' : '🔇 Ses: Kapalı');
 }
 
+// Tek oyunculu: Adalar Dünyası (Skyblock). Normal dünya çok oyunculu sunucuda açılır.
 function startSingleplayer(){
-  if(skyMode) resetWorld(false);
-  inMainMenu = false;
-  $('mainMenu').classList.add('hidden');
-  closeSubModal('charModal');
-  closeSubModal('multiModal');
-  closeSubModal('settingsModal');
+  if(netMode) netDisconnect();
+  startSkyblock();
   if(!isTouchDevice && $('invModal').style.display !== 'flex'){
     $('c').requestPointerLock();
   }
-  toast('🎮 Dünya yüklendi! İyi oyunlar.');
 }
 
 function returnToMainMenu(){
