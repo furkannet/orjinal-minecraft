@@ -268,7 +268,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.27';
+const APP_VERSION = 'v0.1.28';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2181,7 +2181,9 @@ function mpStatus(msg){ const el = $('mpStatus'); if(el) el.textContent = msg; }
 
 function netConnect(room){
   const input = $('mpAddr');
-  let url = (input && input.value.trim()) || `ws://${location.hostname || 'localhost'}:8765`;
+  // https üzerinden açılan sayfa (ör. GitHub Pages) yerel sunucuya ancak localhost ile bağlanabilir
+  const host = (location.hostname && location.protocol !== 'https:') ? location.hostname : 'localhost';
+  let url = (input && input.value.trim()) || `ws://${host}:8765`;
   if(!/^wss?:\/\//.test(url)){ mpStatus('Adres ws:// ile başlamalı'); return; }
   if(input) input.value = url;
   netDisconnect();
@@ -2199,7 +2201,11 @@ function netConnect(room){
       netMode = false;
       toast('🔌 Sunucu bağlantısı koptu, menüye dönülüyor');
       setTimeout(() => location.reload(), 2000);
-    } else mpStatus('Bağlantı kapandı.');
+    } else {
+      const msg = `Sunucuya bağlanılamadı (${url}). Bilgisayarında önce "python3 server.py" çalıştır; başka bir bilgisayarsa adresi ws://<ip>:8765 yaz.`;
+      mpStatus(msg);
+      toast('❌ Sunucuya bağlanılamadı');
+    }
   };
 }
 
