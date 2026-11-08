@@ -267,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.18';
+const APP_VERSION = 'v0.1.19';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2833,7 +2833,7 @@ function animate(now){
   sunMesh.lookAt(player.x, player.y, player.z);
   sunLight.position.copy(sunMesh.position);
 
-  const sunH = Math.sin(sunAngle);
+  const sunH = skyMode ? 1 : Math.sin(sunAngle); // Skyblock'ta hep gündüz
   const isNight = (sunH < -0.2);
   const phase = sunH > 0.2 ? 0 : (sunH > -0.2 ? 1 : 2);
   if(phase !== lastPhase){ // gökyüzü rengi yalnızca evre değişince yazılır
@@ -2940,8 +2940,9 @@ function animate(now){
     player.vy = Math.min(player.vy, 0);
   }
 
-  if(player.y < -10 && skyMode){
+  if(skyMode && player.y < SKY_Y - 20){ // Skyblock: adadan 20 blok aşağı düşünce başlangıç bloğuna geri ışınlan
     player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
+    if(getBlock(8, SKY_Y, 8) !== 3) setBlock(8, SKY_Y, 8, 3); // kırılmış olsa da başlangıç bloğu geri gelir
   } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
     player.y = Math.max(h + 3, SEA_LEVEL + 3);
