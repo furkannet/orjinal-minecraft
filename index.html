@@ -279,7 +279,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.46';
+const APP_VERSION = 'v0.1.47';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1946,7 +1946,7 @@ function addItem(id, n){
   renderHotbar();
   if($('invModal').style.display === 'flex') renderInventoryGrid(); // Açıkken envanter canlı güncellensin
 }
-function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49].includes(id); }
+function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49, 50, 51, 52, 53, 54].includes(id); }
 function nearBlock(id, r = 4.5){
   const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
   for(let x = px - 4; x <= px + 4; x++) for(let y = py - 4; y <= py + 4; y++) for(let z = pz - 4; z <= pz + 4; z++){
