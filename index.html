@@ -267,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.21';
+const APP_VERSION = 'v0.1.22';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2741,8 +2741,9 @@ function updateRaycast(){
 function mineTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
-  if(skyMode && x === 8 && y === SKY_Y && z === 8){ // Skyblock: başlangıç bloğu kırılmaz, seviye ödülü verir
+  if(skyMode && x === 8 && y === SKY_Y && z === 8 && getBlock(x, y, z) === 3){ // Skyblock: taş kırılınca seviye ödülü gelir, yerine toprak kalır
     skyBlockMined();
+    setBlock(x, y, z, 2);
     playSound('break');
     return;
   }
