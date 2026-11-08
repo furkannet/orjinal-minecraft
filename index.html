@@ -279,7 +279,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.48';
+const APP_VERSION = 'v0.1.49';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2590,7 +2590,7 @@ document.addEventListener('mousemove', e => {
 window.addEventListener('mousedown', e => {
   if(!isLocked || inMainMenu || isPaused || $('invModal').style.display === 'flex') return;
   if(e.button === 0){
-    if(!tryAttack()) lmbHeld = true; // Önce yaratığa vur, yoksa basılı tutarak kır
+    if(!tryAttack()) clickBreak(); // Önce yaratığa vur, yoksa tıklanan bloğu kır (basılı tutmak kırmaz)
     if(swingPh === 0) swingPh = 0.0001; // el vuruşu
   }
   else if(e.button === 2){
@@ -2648,7 +2648,7 @@ bindTouchKey('btnLeft', 'KeyA');
 bindTouchKey('btnRight', 'KeyD');
 bindTouchKey('btnJump', 'Space');
 
-$('btnMine').addEventListener('touchstart', e => { e.preventDefault(); lmbHeld = true; if(swingPh === 0) swingPh = 0.0001; });
+$('btnMine').addEventListener('touchstart', e => { e.preventDefault(); clickBreak(); if(swingPh === 0) swingPh = 0.0001; });
 $('btnMine').addEventListener('touchend', e => { e.preventDefault(); lmbHeld = false; });
 $('btnMine').addEventListener('touchcancel', () => { lmbHeld = false; });
 $('btnPlace').addEventListener('touchstart', e => { e.preventDefault(); placeTarget(); });
@@ -3038,6 +3038,13 @@ const mine = { x: 0, y: 0, z: 0, t: 0, need: 1, active: false };
 function resetMining(){
   mine.active = false;
   crackMesh.visible = false;
+}
+// Tıklamayla anında kırma: basılı tutmak kırmaz, her tıklama bir bloğu kırar
+function clickBreak(){
+  if(!targetInfo || inMainMenu || isPaused || $('invModal').style.display === 'flex') return;
+  const h = targetInfo.hit;
+  if(getBlock(h.x, h.y, h.z) === 0) return;
+  breakTarget();
 }
 function updateMining(dt){
   const ok = lmbHeld && targetInfo && isLocked && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex';
