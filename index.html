@@ -255,7 +255,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.11';
+const APP_VERSION = 'v0.1.12';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2676,11 +2676,11 @@ function animate(now){
   const nextX = player.x + moveX * dt;
   if(sneaking && !groundUnder(nextX, player.z)){ /* eğilmişken kenardan düşme */ }
   else if(!collide(nextX, player.y, player.z) && !mobBlocksPlayer(nextX, player.z)) player.x = nextX;
-  else tryStep(nextX, player.z);
+  else if(!sneaking) tryStep(nextX, player.z); // eğilirken basamağa tırmanmaz
   const nextZ = player.z + moveZ * dt;
   if(sneaking && !groundUnder(player.x, nextZ)){ /* eğilmişken kenardan düşme */ }
   else if(!collide(player.x, player.y, nextZ) && !mobBlocksPlayer(player.x, nextZ)) player.z = nextZ;
-  else tryStep(player.x, nextZ);
+  else if(!sneaking) tryStep(player.x, nextZ);
 
   // Y Çarpışma
   const nextY = player.y + player.vy * dt;
