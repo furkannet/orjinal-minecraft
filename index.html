@@ -174,27 +174,39 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 <div id="multiModal" class="pauseModalStyle">
   <div class="subModalCard">
     <h3>🌐 Çok Oyunculu Sunucular</h3>
-    
+
+    <div style="text-align:left;font-size:12px;margin-bottom:8px">
+      Sunucu adresi:
+      <input id="mpAddr" type="text" style="width:100%;box-sizing:border-box;padding:6px;margin-top:4px;background:#0f1218;color:#fff;border:2px solid #333;border-radius:4px" placeholder="ws://localhost:8765">
+    </div>
+    <div id="mpStatus" style="font-size:12px;color:#fbbf24;min-height:16px;margin-bottom:8px;text-align:left"></div>
+
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;text-align:left;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-weight:bold;display:flex;align-items:center;gap:6px">
           <span>🏝️ Adalar Dünyası (Skyblock)</span>
-          <span style="color:#4ade80;font-size:11px">● 42 Oyuncu</span>
         </div>
-        <div style="font-size:11px;color:#aaa">Gökyüzündeki yüzen adalar ve madenler!</div>
+        <div style="font-size:11px;color:#aaa">Tek bloktan başla, herkes aynı gökyüzü dünyasında.</div>
       </div>
-      <button class="mcMenuBtn" onclick="startSkyblock();closeSubModal('multiModal')" style="padding:6px 12px;background:#2563eb">Giriş Yap</button>
+      <button class="mcMenuBtn" onclick="netConnect('sky')" style="padding:6px 12px;background:#2563eb">Giriş Yap</button>
     </div>
 
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;text-align:left;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-weight:bold;display:flex;align-items:center;gap:6px">
-          <span>📶 Yerel Ağ (LAN Sunucusu)</span>
-          <span style="color:#4ade80;font-size:11px">● Açık</span>
+          <span>🌍 Normal Dünya (Çok Oyunculu)</span>
         </div>
-        <div style="font-size:11px;color:#aaa">Aynı Wi-Fi üzerinden arkadaşlarınla oyna.</div>
+        <div style="font-size:11px;color:#aaa">Aynı dünyada arkadaşlarınla blok kır ve koy.</div>
       </div>
-      <button class="mcMenuBtn" onclick="startSingleplayer();closeSubModal('multiModal')" style="padding:6px 12px">Bağlan</button>
+      <button class="mcMenuBtn" onclick="netConnect('normal')" style="padding:6px 12px">Bağlan</button>
+    </div>
+
+    <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;text-align:left;display:flex;justify-content:space-between;align-items:center">
+      <div>
+        <div style="font-weight:bold">🏝️ Tek Blok (çevrimdışı)</div>
+        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına skyblock.</div>
+      </div>
+      <button class="mcMenuBtn" onclick="startSkyblock();closeSubModal('multiModal')" style="padding:6px 12px">Oyna</button>
     </div>
 
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:14px;text-align:left">
@@ -255,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.16';
+const APP_VERSION = 'v0.1.17';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -732,6 +744,11 @@ function startSingleplayer(){
 }
 
 function returnToMainMenu(){
+  if(netMode){ // çok oyuncudan çıkış: yerel dünya kaydı değişmediği için sayfayı yenilemek yeterli
+    netMode = false; netDisconnect();
+    location.reload();
+    return;
+  }
   writeSave();
   togglePauseMenu(false);
   inMainMenu = true;
@@ -816,14 +833,19 @@ const SEA_LEVEL = 82; // Deniz seviyesi
 const MAX_BUILD_HEIGHT = 150; // Yukarı çıkma ve blok koyma sınırı
 // Skyblock: tek blokla başlayan gökyüzü dünyası (çok oyuncu "Giriş Yap" bunu açar)
 let skyMode = false;
+// Çok oyuncu durumu (bkz. netConnect). netMode açıkken dünya sunucudan gelir ve yerel kayda yazılmaz.
+let netMode = false;
+const net = { ws: null, id: null, out: [], applying: false };
 const SKY_Y = 90;
-function resetWorld(sky){
+function resetWorld(sky, mods){
   skyMode = sky;
   for(const ch of chunks.values()){ disposeChunkMesh(ch); chunkGroup.remove(ch.group); }
   chunks.clear(); dirtyChunks.clear(); _lastCh = null;
   worldMods.clear(); modsByChunk.clear(); modsDirty = true; spawnedChunks.clear();
   for(const m of mobs) mobGroup.remove(m.mesh);
   mobs.length = 0;
+  // Çok oyuncu: sunucudan gelen blok değişiklikleri [x,y,z,id,...] (chunk üretilmeden önce uygulanır)
+  if(mods) for(let i = 0; i + 3 < mods.length; i += 4) recordMod(mods[i], mods[i+1], mods[i+2], mods[i+3]);
   if(sky){
     player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
     updateChunks(true);
@@ -1374,6 +1396,7 @@ function setBlock(x, y, z, id){
   if(lx === CHUNK_SIZE - 1) markDirty(chunks.get(ckey(cx + 1, cz)));
   if(lz === 0) markDirty(chunks.get(ckey(cx, cz - 1)));
   if(lz === CHUNK_SIZE - 1) markDirty(chunks.get(ckey(cx, cz + 1)));
+  if(netMode && !net.applying) net.out.push(x, y, z, id); // çok oyuncu: değişikliği sunucuya gönder
 }
 
 /* ---- Chunk akışı: yeni chunk'lar kare başına küçük bütçeyle, en yakından başlayarak yüklenir ---- */
@@ -2086,6 +2109,138 @@ function collide(px, py, pz){
   return false;
 }
 
+/* ================= ÇOK OYUNCU (WebSocket, server.py) ================= */
+const netGroup = new THREE.Group();
+scene.add(netGroup);
+const netMeshes = new Map(); // oyuncu id -> {g, tx, ty, tz, tyaw}
+const NET_COLORS = [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe67e22];
+const netName = 'Oyuncu' + (100 + Math.floor(Math.random() * 900));
+
+function mpStatus(msg){ const el = $('mpStatus'); if(el) el.textContent = msg; }
+
+function netConnect(room){
+  const input = $('mpAddr');
+  let url = (input && input.value.trim()) || `ws://${location.hostname || 'localhost'}:8765`;
+  if(!/^wss?:\/\//.test(url)){ mpStatus('Adres ws:// ile başlamalı'); return; }
+  if(input) input.value = url;
+  netDisconnect();
+  mpStatus('Bağlanılıyor: ' + url + ' ...');
+  let ws;
+  try{ ws = new WebSocket(url); } catch(e){ mpStatus('Adres geçersiz'); return; }
+  net.ws = ws;
+  ws.onopen = () => ws.send(JSON.stringify({t: 'hello', room, seed: SEED, name: netName}));
+  ws.onmessage = e => { try{ netOnMessage(JSON.parse(e.data)); } catch(err){ console.error(err); } };
+  ws.onerror = () => { if(net.ws === ws && !netMode) mpStatus('Sunucuya ulaşılamadı. server.py çalışıyor mu?'); };
+  ws.onclose = () => {
+    if(net.ws !== ws) return;
+    net.ws = null;
+    if(netMode){ // oyun sırasında kopma: temiz şekilde menüye dön
+      netMode = false;
+      toast('🔌 Sunucu bağlantısı koptu, menüye dönülüyor');
+      setTimeout(() => location.reload(), 2000);
+    } else mpStatus('Bağlantı kapandı.');
+  };
+}
+
+function netDisconnect(){
+  const w = net.ws;
+  net.ws = null;
+  if(w){ try{ w.close(); } catch(e){} }
+}
+
+function netOnMessage(m){
+  if(m.t === 'welcome') netEnter(m);
+  else if(m.t === 'p') netMove(m);
+  else if(m.t === 'bs'){
+    net.applying = true;
+    for(let i = 0; i + 3 < m.l.length; i += 4) setBlock(m.l[i], m.l[i+1], m.l[i+2], m.l[i+3]);
+    net.applying = false;
+  }
+  else if(m.t === 'join'){ netAddPlayer(m); toast(`👋 ${m.name} katıldı`); }
+  else if(m.t === 'leave') netRemovePlayer(m.id);
+}
+
+function netEnter(m){
+  mpStatus('');
+  for(const pid of Array.from(netMeshes.keys())) netRemovePlayer(pid);
+  net.id = m.id;
+  netMode = true;
+  SEED = m.seed;
+  $('seedVal').textContent = SEED;
+  resetWorld(m.room === 'sky', m.mods);
+  for(const p of m.players) netAddPlayer(p);
+  inMainMenu = false;
+  $('mainMenu').classList.add('hidden');
+  closeSubModal('charModal'); closeSubModal('multiModal'); closeSubModal('settingsModal');
+  toast(m.room === 'sky' ? '🏝️ Skyblock sunucusu: tek blokla başla!' : '🌍 Normal dünya sunucusu bağlandı');
+}
+
+function netAddPlayer(p){
+  if(p.id === net.id || netMeshes.has(p.id)) return;
+  const g = new THREE.Group();
+  const head = new THREE.Mesh(BG(0.5, 0.5, 0.5), ML(0xdca882));
+  head.position.y = 1.45;
+  const body = new THREE.Mesh(BG(0.5, 0.7, 0.3), ML(NET_COLORS[p.id % NET_COLORS.length]));
+  body.position.y = 0.85;
+  const legs = new THREE.Mesh(BG(0.4, 0.5, 0.3), ML(0x2c3558));
+  legs.position.y = 0.25;
+  g.add(head, body, legs);
+  // İsim etiketi (oyuncu başına bir tuval dokusu)
+  const cv = document.createElement('canvas');
+  cv.width = 128; cv.height = 32;
+  const cx = cv.getContext('2d');
+  cx.font = 'bold 20px sans-serif'; cx.textAlign = 'center'; cx.fillStyle = '#fff';
+  cx.strokeStyle = '#000'; cx.lineWidth = 4;
+  cx.strokeText(String(p.name).slice(0, 16), 64, 22); cx.fillText(String(p.name).slice(0, 16), 64, 22);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map: tex, depthTest: false}));
+  sprite.scale.set(1.6, 0.4, 1);
+  sprite.position.y = 2.1;
+  g.add(sprite);
+  g.position.set(p.x || 0, p.y || 0, p.z || 0);
+  netGroup.add(g);
+  netMeshes.set(p.id, {g, tx: g.position.x, ty: g.position.y, tz: g.position.z, tyaw: 0, sprite, tex});
+}
+
+function netMove(m){
+  if(m.id === net.id) return;
+  let e = netMeshes.get(m.id);
+  if(!e){ netAddPlayer({id: m.id, name: '?', x: m.x, y: m.y, z: m.z}); e = netMeshes.get(m.id); if(!e) return; }
+  e.tx = m.x; e.ty = m.y; e.tz = m.z; e.tyaw = m.yaw;
+}
+
+function netRemovePlayer(pid){
+  const e = netMeshes.get(pid);
+  if(!e) return;
+  netGroup.remove(e.g);
+  e.sprite.material.dispose();
+  e.tex.dispose();
+  netMeshes.delete(pid);
+}
+
+// Uzak oyuncuları yumuşakça hedeflerine kaydır (kare başı, yeni nesne yok)
+function netLerp(dt){
+  const k = Math.min(1, dt * 12);
+  for(const e of netMeshes.values()){
+    const p = e.g.position;
+    p.x += (e.tx - p.x) * k; p.y += (e.ty - p.y) * k; p.z += (e.tz - p.z) * k;
+    e.g.rotation.y += (e.tyaw - e.g.rotation.y) * k;
+  }
+}
+
+// Kendi konumunu 10 kez/sn gönder; blok değişikliklerini 50 ms'de bir toplu gönder
+setInterval(() => {
+  const ws = net.ws;
+  if(!netMode || !ws || ws.readyState !== 1) { net.out.length = 0; return; }
+  if(net.out.length){ ws.send(JSON.stringify({t: 'bs', l: net.out})); net.out.length = 0; }
+}, 50);
+setInterval(() => {
+  const ws = net.ws;
+  if(!netMode || !ws || ws.readyState !== 1) return;
+  ws.send(JSON.stringify({t: 'p', x: player.x, y: player.y, z: player.z, yaw: player.yaw, pitch: player.pitch}));
+}, 100);
+
 /* ================= KONTROLLER ================= */
 const keys = {};
 window.addEventListener('keydown', e => {
@@ -2338,7 +2493,7 @@ function readSave(){
   } catch(e){ return null; }
 }
 function writeSave(){
-  if(skyMode) return;
+  if(skyMode || netMode) return; // çok oyuncu dünyası yerel kayda yazılmaz
   try{
     if(modsDirty){
       modsArrCache = [];
@@ -2795,6 +2950,7 @@ function animate(now){
     $('coords').textContent = `${player.x.toFixed(1)}, ${player.y.toFixed(1)}, ${player.z.toFixed(1)}`;
   }
 
+  netLerp(dt);
   updateRaycast();
   updateHeld();
   renderer.render(scene, camera);
