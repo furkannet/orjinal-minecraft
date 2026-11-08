@@ -249,10 +249,14 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
       <div id="skyResetBox" style="display:none">
         <button id="btnSkyReset" class="mcMenuBtn" onclick="skyAskReset()" style="background:#7a4a1a">♻ Adayı Sıfırla</button>
         <div id="skyResetConfirm" style="display:none">
-          <div style="margin:6px 0;font-size:13px">Emin misin? Ada ve envanter sıfırlanacak.</div>
+          <div style="margin:6px 0;font-size:13px">Emin misin? Ada kaydedilip yeni bir ada açılacak (eski adalar listede kalır). Envanter sıfırlanacak.</div>
           <button class="mcMenuBtn" onclick="skyDoReset()" style="background:#5c3535">Evet</button>
           <button class="mcMenuBtn" onclick="skyCancelReset()">Hayır</button>
         </div>
+      </div>
+      <div id="skyIslandBox" style="display:none">
+        <button id="btnSkyIslands" class="mcMenuBtn" onclick="toggleIslandList()" style="background:#2d4f6e">⋯ Kayıtlı Adalar</button>
+        <div id="skyIslandList" style="display:none"></div>
       </div>
       <button id="btnExitTitle" class="mcMenuBtn" onclick="returnToMainMenu()" style="background:#5c3535">🏠 Ana Menüye Dön</button>
     </div>
@@ -275,7 +279,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.43';
+const APP_VERSION = 'v0.1.44';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -864,11 +868,84 @@ function skyDoReset(){
     if(net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify({t: 'reset'}));
     else { toast('❌ Sunucu bağlı değil, sıfırlanamadı'); return; }
   } else {
+    archiveCurrentIsland(); // eski ada silinmez, kayıtlı adalara eklenir
+    localStorage.removeItem(SKY_CUR_KEY);
     resetWorld(true);
   }
   renderHotbar();
   togglePauseMenu(false);
-  toast('♻ Ada sıfırlandı');
+  toast('♻ Ada sıfırlandı, eski ada kaydedildi');
+}
+
+/* ---- Skyblock ada kayıtları (tarayıcıda saklanır) ---- */
+const ISLAND_KEY = 'orijinalMinecraft.islands';
+const SKY_CUR_KEY = 'orijinalMinecraft.sky';
+function skyWorldFlat(){
+  const out = [];
+  for(const [k, id] of worldMods){ const [x, y, z] = k.split(',').map(Number); out.push(x, y, z, id); }
+  return out;
+}
+function readIslands(){
+  try{ const a = JSON.parse(localStorage.getItem(ISLAND_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function writeIslands(a){
+  try{ localStorage.setItem(ISLAND_KEY, JSON.stringify(a)); } catch(e){}
+}
+function archiveCurrentIsland(){
+  const mods = skyWorldFlat();
+  if(!mods.length) return; // hiç değişiklik yoksa kaydedilecek bir şey yok
+  const a = readIslands();
+  a.unshift({ name: 'Ada ' + new Date().toLocaleString('tr-TR'), mods });
+  if(a.length > 20) a.length = 20;
+  writeIslands(a);
+}
+function writeSkyCurrent(){
+  if(!skyMode || netMode) return;
+  try{ localStorage.setItem(SKY_CUR_KEY, JSON.stringify({ mods: skyWorldFlat() })); } catch(e){}
+}
+function readSkyCurrent(){
+  try{
+    const s = JSON.parse(localStorage.getItem(SKY_CUR_KEY) || 'null');
+    return (s && Array.isArray(s.mods)) ? s.mods : null;
+  } catch(e){ return null; }
+}
+function toggleIslandList(){
+  const el = $('skyIslandList');
+  if(el.style.display !== 'none'){ el.style.display = 'none'; return; }
+  renderIslandList();
+  el.style.display = '';
+}
+function renderIslandList(){
+  const el = $('skyIslandList');
+  el.innerHTML = '';
+  const a = readIslands();
+  if(!a.length){
+    el.innerHTML = '<div style="font-size:12px;color:#aaa;margin:4px 0">Kayıtlı ada yok. Sıfırladığın adalar burada görünür.</div>';
+    return;
+  }
+  a.forEach((isl, i) => {
+    const b = document.createElement('button');
+    b.className = 'mcMenuBtn';
+    b.textContent = isl.name + ' (' + (isl.mods.length / 4) + ' değişiklik)';
+    b.onclick = () => loadIsland(i);
+    el.appendChild(b);
+  });
+}
+function loadIsland(i){
+  if(netMode){ toast('Çok oyuncuda kayıtlı ada yüklenemez'); return; }
+  const a = readIslands();
+  const sel = a[i];
+  if(!sel) return;
+  a.splice(i, 1);
+  const cur = skyWorldFlat(); // şu anki ada da kaybolmasın
+  if(cur.length) a.unshift({ name: 'Ada ' + new Date().toLocaleString('tr-TR'), mods: cur });
+  writeIslands(a);
+  resetWorld(true, sel.mods);
+  writeSkyCurrent();
+  renderHotbar();
+  togglePauseMenu(false);
+  toast('🏝️ ' + sel.name + ' yüklendi');
 }
 
 function togglePauseMenu(show){
@@ -881,6 +958,7 @@ function togglePauseMenu(show){
   updatePauseMenuUI();
   // Sıfırlama düğmesi yalnızca tek oyunculu skyblock'ta (çok oyuncuda ada ortaktır)
   $('skyResetBox').style.display = skyMode ? '' : 'none';
+  $('skyIslandBox').style.display = skyMode ? '' : 'none';
   skyCancelReset();
   if(isPaused){
     if(document.pointerLockElement) document.exitPointerLock();
@@ -943,7 +1021,7 @@ function resetWorld(sky, mods){
 }
 function startSkyblock(){
   const resumed = skyMode; // ada bellekte duruyorsa kaldığın yerden devam et (sayfa yenilenene kadar)
-  if(!resumed) resetWorld(true);
+  if(!resumed) resetWorld(true, readSkyCurrent() || undefined); // yarım kalan ada tarayıcıda saklıysa onu aç
   inMainMenu = false;
   $('mainMenu').classList.add('hidden');
   closeSubModal('charModal'); closeSubModal('multiModal'); closeSubModal('settingsModal');
@@ -2665,8 +2743,8 @@ function applySavedState(){
   renderHearts();
   renderHotbar();
 }
-setInterval(writeSave, 10000);
-window.addEventListener('beforeunload', writeSave);
+setInterval(() => { writeSave(); writeSkyCurrent(); }, 10000);
+window.addEventListener('beforeunload', () => { writeSave(); writeSkyCurrent(); });
 
 /* ---- Karakter Kostümleri ve Çizimi ---- */
 let selectedSkin = localStorage.getItem('orijinalMinecraft.skin') || 'steve';
