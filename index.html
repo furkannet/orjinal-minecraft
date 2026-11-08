@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.54';
+const APP_VERSION = 'v0.1.55';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -724,6 +724,16 @@ Object.assign(BLOCKS, {
   54: { id: 54, name: 'Kapı', icon: doorTex.canvas, getMats: () => LM(doorTex.tex) }
 });
 
+/* ---- Portal (56): çok oyunculu Skyblock'ta normal dünyaya geçiş; geçilebilir, mor ---- */
+const portalTex = makePixelTexture(cx => {
+  cx.fillStyle = '#5b1f9e'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#9a4dff'; for(let i = 0; i < 16; i += 4) cx.fillRect(i, (i * 3) % 16, 3, 2);
+  cx.fillStyle = '#d7b8ff'; cx.fillRect(6, 6, 3, 3);
+});
+Object.assign(BLOCKS, {
+  56: { id: 56, name: 'Portal', icon: portalTex.canvas, getMats: () => LM(portalTex.tex) }
+});
+
 /* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
 // Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı). Oyuncu bu bloğun üstünde doğar (5.5, SKY_Y+1, 5.5).
 function skyIslandBlocks(){
@@ -734,6 +744,15 @@ function skyIslandBlocks(){
     for(const [x, z] of [[5,5],[5,6],[5,7],[6,7],[7,7]]){
       out.push([x, SKY_Y, z, 1], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
     }
+    // Spawn'ın önünde (−z) küçük platform ve portal: çerçeve obsidyen, iç kısım mor portal
+    for(let x = 4; x <= 6; x++) for(let z = 2; z <= 4; z++){
+      if(z === 4 && x !== 5) continue; // L'ye bağlanan köprü: (5,4)
+      out.push([x, SKY_Y, z, 1], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
+    }
+    for(let x = 4; x <= 7; x++) out.push([x, SKY_Y + 1, 2, 19]);           // alt çerçeve
+    for(let y = 2; y <= 4; y++){ out.push([4, SKY_Y + y, 2, 19], [7, SKY_Y + y, 2, 19]); } // yan çerçeveler
+    for(let x = 4; x <= 7; x++) out.push([x, SKY_Y + 5, 2, 19]);           // üst çerçeve
+    for(let x = 5; x <= 6; x++) for(let y = 2; y <= 4; y++) out.push([x, SKY_Y + y, 2, 56]); // portal iç kısmı
     for(let y = 1; y <= 3; y++) out.push([7, SKY_Y + y, 7, 5]); // gövde (odun)
     for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
     out.push([7, SKY_Y + 5, 7, 7]);
@@ -1094,6 +1113,7 @@ let skyMode = false;
 // Çok oyuncu durumu (bkz. netConnect). netMode açıkken dünya sunucudan gelir ve yerel kayda yazılmaz.
 let netMode = false;
 let netRoomName = null; // bağlı olunan oda: 'sky' veya 'normal'
+let portalBusy = false; // portala girildi, odalar değişiyor
 const net = { ws: null, id: null, out: [], applying: false };
 const SKY_Y = 90;
 function resetWorld(sky, mods){
@@ -1534,7 +1554,8 @@ TRANSP[0] = TRANSP[9] = TRANSP[13] = 1; // hava, cam, su
 TRANSP[55] = 1; // açık kapı: çizilmez (boş görünür), komşular yüzünü gösterir
 // Üzerinden geçilebilen (katı olmayan) bloklar: su, lav, açık kapı, merdiven
 const NONSOLID = new Uint8Array(256);
-NONSOLID[13] = NONSOLID[24] = NONSOLID[55] = NONSOLID[51] = 1;
+NONSOLID[13] = NONSOLID[24] = NONSOLID[55] = NONSOLID[51] = NONSOLID[56] = 1;
+TRANSP[56] = 1; // portal: geçilebilir; komşular yüzünü gösterir
 function isTransparentBlock(id){ return TRANSP[id] === 1; }
 
 function disposeChunkMesh(ch){
@@ -2476,6 +2497,7 @@ function netEnter(m){
   net.id = m.id;
   netMode = true;
   netRoomName = m.room;
+  portalBusy = false;
   SEED = m.seed;
   $('seedVal').textContent = SEED;
   resetWorld(m.room === 'sky', m.mods);
@@ -3335,6 +3357,12 @@ function animate(now){
     player.vy = Math.min(player.vy, 0);
   }
 
+  // Çok oyunculu Skyblock'ta portala girince normal dünya odasına geçilir
+  if(netMode && netRoomName === 'sky' && !portalBusy && getBlock(Math.floor(player.x), Math.floor(player.y + 1), Math.floor(player.z)) === 56){
+    portalBusy = true;
+    toast('🌀 Normal dünyaya geçiliyor...');
+    netConnect('normal');
+  }
   if(skyMode && player.y < SKY_Y - 20){ // Skyblock: adadan 20 blok aşağı düşünce başlangıç bloğuna geri ışınlan
     player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0;
   } else if(player.y < -10){
