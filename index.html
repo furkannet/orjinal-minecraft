@@ -279,7 +279,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.45';
+const APP_VERSION = 'v0.1.46';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -664,6 +664,71 @@ const fenceTex = makePixelTexture(cx => {
 });
 Object.assign(BLOCKS, {
   50: { id: 50, name: 'Çit', icon: fenceTex.canvas, getMats: () => LM(fenceTex.tex) }
+});
+
+/* ---- Gerçekçi çalışma masası ve fırın; merdiven, yatak, halı, kapı ---- */
+const craftTopTex = makePixelTexture(cx => {
+  cx.fillStyle = '#b58a4f'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#6b4a24'; for(let i = 0; i < 16; i += 5){ cx.fillRect(i, 0, 1, 16); cx.fillRect(0, i, 16, 1); }
+  cx.fillStyle = '#8a8a8a'; cx.fillRect(3, 3, 3, 3); cx.fillRect(10, 10, 3, 3);
+});
+const craftSideTex = makePixelTexture(cx => {
+  cx.fillStyle = '#b58a4f'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#6b4a24'; cx.fillRect(0, 0, 16, 1); cx.fillRect(0, 15, 16, 1);
+  cx.fillStyle = '#8a8a8a'; cx.fillRect(2, 2, 5, 2);            // çekiç başı
+  cx.fillStyle = '#6b4a24'; cx.fillRect(4, 4, 1, 10); cx.fillRect(10, 3, 2, 11); // saplar
+  cx.fillStyle = '#d9d9d9'; cx.fillRect(10, 4, 4, 2);           // kılıç
+});
+const furnaceSideTex = makePixelTexture(cx => {
+  cx.fillStyle = '#7a7a7a'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#5c5c5c'; for(const [x, y] of [[1,1],[5,2],[10,1],[2,6],[9,7],[13,5],[1,11],[6,12],[11,11],[4,14]]) cx.fillRect(x, y, 2, 2);
+});
+const furnaceFrontTex = makePixelTexture(cx => {
+  cx.fillStyle = '#7a7a7a'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#5c5c5c'; for(const [x, y] of [[1,1],[10,1],[1,13],[10,13]]) cx.fillRect(x, y, 2, 2);
+  cx.fillStyle = '#2a2a2a'; cx.fillRect(4, 6, 8, 7);            // ağız
+  cx.fillStyle = '#ff7a1a'; cx.fillRect(6, 9, 4, 3);            // ateş
+  cx.fillStyle = '#ffd24a'; cx.fillRect(7, 10, 2, 1);
+});
+const bedTopTex = makePixelTexture(cx => {
+  cx.fillStyle = '#b22222'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#eeeeee'; cx.fillRect(2, 1, 12, 5);           // yastık
+  cx.fillStyle = '#d0d0d0'; cx.fillRect(2, 5, 12, 1);
+});
+const bedSideTex = makePixelTexture(cx => {
+  cx.fillStyle = '#b22222'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#6b4a24'; cx.fillRect(0, 12, 16, 4);          // yatak ayağı
+});
+const ladderTex = makePixelTexture(cx => {
+  cx.fillStyle = '#4a3a22'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#7a5a2c'; cx.fillRect(2, 0, 2, 16); cx.fillRect(12, 0, 2, 16); // kenar sırıkları
+  cx.fillStyle = '#8b6434'; for(const y of [2, 6, 10, 14]) cx.fillRect(4, y, 8, 1); // basamaklar
+});
+const carpetTex = makePixelTexture(cx => {
+  cx.fillStyle = '#c0392b'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#8e2a20'; for(let i = 0; i < 16; i += 4) cx.fillRect(0, i, 16, 1);
+  cx.fillStyle = '#e0a040'; cx.fillRect(6, 6, 4, 4);
+});
+const doorTex = makePixelTexture(cx => {
+  cx.fillStyle = '#a0764a'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#6b4a24'; cx.fillRect(1, 1, 14, 1); cx.fillRect(1, 14, 14, 1); cx.fillRect(1, 1, 1, 14); cx.fillRect(14, 1, 1, 14);
+  cx.fillRect(3, 4, 10, 1); cx.fillRect(3, 10, 10, 1);
+  cx.fillStyle = '#d4af37'; cx.fillRect(11, 7, 2, 2);           // kulp
+});
+Object.assign(BLOCKS, {
+  25: { id: 25, name: 'Ocak', icon: furnaceFrontTex.canvas, getMats: () => [
+    LM(furnaceSideTex.tex), LM(furnaceSideTex.tex), LM(furnaceSideTex.tex), LM(furnaceSideTex.tex),
+    LM(furnaceFrontTex.tex), LM(furnaceSideTex.tex),
+  ]},
+  40: { id: 40, name: 'Çalışma Masası', icon: craftTopTex.canvas, getMats: () => [
+    LM(craftSideTex.tex), LM(craftSideTex.tex), LM(craftTopTex.tex), LM(craftTopTex.tex), LM(craftSideTex.tex), LM(craftSideTex.tex),
+  ]},
+  51: { id: 51, name: 'Merdiven', icon: ladderTex.canvas, getMats: () => LM(ladderTex.tex) },
+  52: { id: 52, name: 'Yatak', icon: bedTopTex.canvas, getMats: () => [
+    LM(bedSideTex.tex), LM(bedSideTex.tex), LM(bedTopTex.tex), LM(bedSideTex.tex), LM(bedSideTex.tex), LM(bedSideTex.tex),
+  ]},
+  53: { id: 53, name: 'Halı', icon: carpetTex.canvas, getMats: () => LM(carpetTex.tex) },
+  54: { id: 54, name: 'Kapı', icon: doorTex.canvas, getMats: () => LM(doorTex.tex) }
 });
 
 /* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
@@ -2672,6 +2737,10 @@ const RECIPES = [
   { out: 38, n: 1, inp: {35: 8}, table: true },                   // Demir zırh
   { out: 45, n: 1, inp: {6: 6, 35: 1}, table: true },             // Kalkan
   { out: 50, n: 3, inp: {6: 6, 32: 2}, table: true },             // Tahta -> Çit
+  { out: 51, n: 3, inp: {32: 7}, table: true },                   // Çubuk -> Merdiven
+  { out: 52, n: 1, inp: {21: 3, 6: 3}, table: true },             // Beyaz yün + tahta -> Yatak
+  { out: 53, n: 3, inp: {21: 2}, table: true },                   // Yün -> Halı
+  { out: 54, n: 3, inp: {6: 6}, table: true },                    // Tahta -> Kapı
 ];
 const craftModal = document.createElement('div');
 craftModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:30;padding:12px';
