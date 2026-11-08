@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.53';
+const APP_VERSION = 'v0.1.54';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -730,7 +730,10 @@ function skyIslandBlocks(){
   if(netMode && netRoomName === 'sky'){
     // Çok oyunculu Skyblock: 3x3 alanda L şeklinde çim + L'nin ucunda bir ağaç
     const out = [];
-    for(const [x, z] of [[5,5],[5,6],[5,7],[6,7],[7,7]]) out.push([x, SKY_Y, z, 1]);
+    // 3 kat derinlik: üstte çim, altta iki kat toprak
+    for(const [x, z] of [[5,5],[5,6],[5,7],[6,7],[7,7]]){
+      out.push([x, SKY_Y, z, 1], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
+    }
     for(let y = 1; y <= 3; y++) out.push([7, SKY_Y + y, 7, 5]); // gövde (odun)
     for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
     out.push([7, SKY_Y + 5, 7, 7]);
