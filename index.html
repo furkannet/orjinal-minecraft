@@ -101,6 +101,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   <div><b>Mod:</b> <span id="modeText" style="color:var(--mc-gold)">Hayatta Kalma</span></div>
   <div><b>XYZ:</b> <span id="coords">0, 0, 0</span></div>
   <div><b>Chunk:</b> <span id="chunkVal">0, 0</span></div>
+  <div id="skyRow" style="display:none"><b>Seviye:</b> <span id="skyLvl">1 (0/200)</span></div>
   <div><b>Seed:</b> <span id="seedVal">0</span></div>
   <div><b>Seçili:</b> <span id="blockName">Çim</span></div>
 </div>
@@ -267,7 +268,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.23';
+const APP_VERSION = 'v0.1.24';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -631,16 +632,27 @@ const BLOCKS = {
   26: { id: 26, name: 'Örs', icon: TEXTURES.anvil.canvas, getMats: () => LM(TEXTURES.anvil.tex) }
 };
 
-// Skyblock: ada hücresinde sırayla bloklar çıkar. Kırılan blok (tek adet) eline gelir,
-// yerine sıradaki blok gelir. Sıra: taş, çim, odun, ..., en sonda elmas. Bittikten sonra toprak kalır.
-const SKY_SEQ = [3, 1, 5, 4, 14, 15, 16, 8, 11]; // Taş, Çim, Odun, Kırıktaş, Kömür, Demir, Altın, Kum, Elmas
-let skyLevel = 0;
-function skyCellBlock(){ return skyLevel < SKY_SEQ.length ? SKY_SEQ[skyLevel] : 2; }
+// Skyblock seviyeleri: her seviyenin kendi bloğu adada çıkar. Her kırılışta blok (tek adet) eline gelir
+// ve ada hücresi aynı bloğa döner. 200 blok kırınca bir üst seviyeye geçilir.
+const SKY_LEVEL_BLOCKS = [5, 2, 3, 14, 15, 16, 8, 4, 11]; // Seviye 1..9: Odun, Toprak, Taş, Kömür, Demir, Altın, Kum, Kırıktaş, Elmas
+const SKY_BREAKS_PER_LEVEL = 200;
+let skyLevel = 1, skyCount = 0;
+function skyCellBlock(){ return SKY_LEVEL_BLOCKS[skyLevel - 1]; }
+function skyUpdateHud(){
+  const row = $('skyRow');
+  if(row) row.style.display = skyMode ? '' : 'none';
+  const el = $('skyLvl');
+  if(el) el.textContent = `${skyLevel} (${skyCount}/${SKY_BREAKS_PER_LEVEL})`;
+}
 function skyBlockMined(id){
   addItem(id, 1);
-  skyLevel++;
+  skyCount++;
+  if(skyCount >= SKY_BREAKS_PER_LEVEL && skyLevel < SKY_LEVEL_BLOCKS.length){
+    skyLevel++; skyCount = 0;
+    toast(`⭐ Seviye ${skyLevel}! Yeni blok: ${BLOCKS[skyCellBlock()].name}`);
+  }
   setBlock(8, SKY_Y, 8, skyCellBlock());
-  toast(skyLevel < SKY_SEQ.length ? `⭐ Yeni blok: ${BLOCKS[skyCellBlock()].name}` : '⭐ Tüm bloklar tamam! Artık toprak kırabilirsin');
+  skyUpdateHud();
 }
 
 /* ---- Eşyalar (27-39, yerleştirilemez) ve çalışma masası (40) ---- */
@@ -868,12 +880,13 @@ function resetWorld(sky, mods){
   // Çok oyuncu: sunucudan gelen blok değişiklikleri [x,y,z,id,...] (chunk üretilmeden önce uygulanır)
   if(mods) for(let i = 0; i + 3 < mods.length; i += 4) recordMod(mods[i], mods[i+1], mods[i+2], mods[i+3]);
   if(sky){
-    skyLevel = 0;
+    skyLevel = 1; skyCount = 0;
     player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
     updateChunks(true);
   } else {
     initPlayerPosition();
   }
+  skyUpdateHud();
 }
 function startSkyblock(){
   resetWorld(true);
@@ -1108,7 +1121,7 @@ function createChunk(cx, cz){
   const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false, maxY: 0 };
   chunkGroup.add(ch.group);
   if(skyMode){ // Skyblock: yalnızca başlangıç noktasında tek blok, gerisi boşluk
-    if(cx === 0 && cz === 0) blocks[8 + 8 * CHUNK_SIZE + SKY_Y * CHUNK_SIZE * CHUNK_SIZE] = 3; // başlangıç bloğu
+    if(cx === 0 && cz === 0) blocks[8 + 8 * CHUNK_SIZE + SKY_Y * CHUNK_SIZE * CHUNK_SIZE] = skyCellBlock(); // ada bloğu (sıradaki seviyenin)
     const cmS = modsByChunk.get(key);
     if(cmS) for(const [idx, id] of cmS) blocks[idx] = id;
     ch.maxY = SKY_Y;
@@ -2736,7 +2749,7 @@ function mineTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
   const id = getBlock(x, y, z);
-  if(skyMode && x === 8 && y === SKY_Y && z === 8 && skyLevel < SKY_SEQ.length && id === SKY_SEQ[skyLevel]){ // Skyblock: sıradaki blok eline gelir
+  if(skyMode && x === 8 && y === SKY_Y && z === 8 && id === skyCellBlock()){ // Skyblock: ada bloğu eline gelir
     skyBlockMined(id);
     playSound('break');
     return;
