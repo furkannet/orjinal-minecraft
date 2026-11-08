@@ -268,7 +268,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.24';
+const APP_VERSION = 'v0.1.25';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -705,6 +705,8 @@ Object.assign(BLOCKS, {
   35: itemDef(35, 'Demir Külçesi', '#e0e0e0', 'square'),
   36: itemDef(36, 'Çiğ Et', '#d8607a', 'square'),
   37: itemDef(37, 'Pişmiş Et', '#8a4a22', 'square'),
+  39: itemDef(39, 'Tahta Kürek', '#9a7040', 'tool'),
+  48: itemDef(48, 'Taş Kürek', '#9a9a9a', 'tool'),
   40: { id: 40, name: 'Çalışma Masası', icon: TEXTURES.planks.canvas, getMats: () => LM(TEXTURES.planks.tex) },
   47: { id: 47, name: 'Kumtaşı', icon: TEXTURES.sandstone.canvas, getMats: () => LM(TEXTURES.sandstone.tex) },
   41: { id: 41, name: 'Kar', icon: TEXTURES.snow.canvas, getMats: () => LM(TEXTURES.snow.tex) },
@@ -2331,7 +2333,7 @@ document.addEventListener('mousemove', e => {
 window.addEventListener('mousedown', e => {
   if(!isLocked || inMainMenu || isPaused || $('invModal').style.display === 'flex') return;
   if(e.button === 0){
-    if(!tryAttack()) mineTarget(); // Önce yaratığa vur, yoksa blok kır
+    if(!tryAttack()) lmbHeld = true; // Önce yaratığa vur, yoksa basılı tutarak kır
   }
   else if(e.button === 2){
     if(!tryEat()) placeTarget(); // Yiyecek seçiliyse ye, değilse blok koy
@@ -2339,7 +2341,7 @@ window.addEventListener('mousedown', e => {
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('mousedown', e => { if(e.button === 2) rmbHeld = true; });
-window.addEventListener('mouseup', e => { if(e.button === 2) rmbHeld = false; });
+window.addEventListener('mouseup', e => { if(e.button === 2) rmbHeld = false; if(e.button === 0) lmbHeld = false; });
 
 let isTouchDevice = false;
 let touchLookId = null, lastTouchX = 0, lastTouchY = 0;
@@ -2387,7 +2389,9 @@ bindTouchKey('btnLeft', 'KeyA');
 bindTouchKey('btnRight', 'KeyD');
 bindTouchKey('btnJump', 'Space');
 
-$('btnMine').addEventListener('touchstart', e => { e.preventDefault(); mineTarget(); });
+$('btnMine').addEventListener('touchstart', e => { e.preventDefault(); lmbHeld = true; });
+$('btnMine').addEventListener('touchend', e => { e.preventDefault(); lmbHeld = false; });
+$('btnMine').addEventListener('touchcancel', () => { lmbHeld = false; });
 $('btnPlace').addEventListener('touchstart', e => { e.preventDefault(); placeTarget(); });
 
 /* ================= HOTBAR VE GENİŞ ENVANTER ================= */
@@ -2468,6 +2472,8 @@ const RECIPES = [
   { out: 40, n: 1, inp: {6: 4} },                                 // Tahta -> Çalışma Masası
   { out: 33, n: 1, inp: {6: 3, 32: 2}, table: true },             // Kazma
   { out: 34, n: 1, inp: {6: 2, 32: 1}, table: true },             // Kılıç
+  { out: 39, n: 1, inp: {6: 2, 32: 1}, table: true },             // Tahta kürek
+  { out: 48, n: 1, inp: {4: 2, 32: 1}, table: true },             // Taş kürek
   { out: 25, n: 1, inp: {4: 8}, table: true },                    // Ocak
   { out: 35, n: 1, inp: {30: 1, 28: 1}, furnace: true },          // Demir külçesi (eritme)
   { out: 37, n: 1, inp: {36: 1}, furnace: true },                 // Pişmiş et (pişirme)
@@ -2745,7 +2751,45 @@ function updateRaycast(){
   targetBox.visible = false;
 }
 
-function mineTarget(){
+/* ---- Basılı tutarak kırma: süre bloğun sertliğine ve elde doğru aletin hızına bağlı ---- */
+// Blok sertliği (saniye, el ile). Tanımsızlar 1 sayılır.
+const HARDNESS = { 1: 0.6, 2: 0.5, 3: 1.5, 4: 1.5, 5: 2, 6: 2, 7: 0.2, 8: 0.5, 9: 0.3, 10: 1.5, 11: 3, 12: 0.3,
+  14: 3, 15: 3, 16: 3, 17: 1.5, 19: 10, 20: 1.5, 21: 0.8, 22: 0.8, 23: 0.8, 25: 3.5, 40: 2.5, 41: 0.2, 46: 0.4, 47: 1.5 };
+const BLOCK_KIND = { 1: 'shovel', 2: 'shovel', 8: 'shovel', 41: 'shovel',
+  5: 'axe', 6: 'axe', 17: 'axe', 40: 'axe',
+  3: 'pick', 4: 'pick', 10: 'pick', 11: 'pick', 14: 'pick', 15: 'pick', 16: 'pick', 19: 'pick', 20: 'pick', 25: 'pick', 47: 'pick' };
+const TOOL_KIND = { 33: 'pick', 42: 'pick', 43: 'pick', 44: 'pick', 39: 'shovel', 48: 'shovel' };
+const TOOL_SPEED = { 33: 2, 42: 4, 43: 6, 44: 8, 39: 2, 48: 4 };
+// Kırma süresi (saniye). Yaratıcı modda anında kırılır.
+function mineNeed(id){
+  if(gameMode !== 'survival') return 0;
+  const hard = HARDNESS[id] ?? 1;
+  const held = hotbarSlots[activeSlotIdx];
+  const kind = BLOCK_KIND[id];
+  if(kind && TOOL_KIND[held] === kind && invCount(held) > 0) return hard / TOOL_SPEED[held];
+  return hard; // Uygun alet yok: elle
+}
+let lmbHeld = false;
+const mine = { x: 0, y: 0, z: 0, t: 0, need: 1, active: false };
+function resetMining(){
+  mine.active = false;
+  wireMat.color.setHex(0x000000);
+}
+function updateMining(dt){
+  const ok = lmbHeld && targetInfo && isLocked && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex';
+  if(!ok){ if(mine.active) resetMining(); return; }
+  const h = targetInfo.hit;
+  if(!mine.active || h.x !== mine.x || h.y !== mine.y || h.z !== mine.z){
+    mine.x = h.x; mine.y = h.y; mine.z = h.z; mine.t = 0; mine.active = true;
+    mine.need = mineNeed(getBlock(h.x, h.y, h.z));
+  }
+  mine.t += dt;
+  const p = mine.need > 0 ? Math.min(1, mine.t / mine.need) : 1;
+  if(p >= 1){ breakTarget(); resetMining(); return; }
+  wireMat.color.setRGB(1, 1 - p, 1 - p); // ilerleme: beyazdan kırmızıya
+}
+
+function breakTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
   const id = getBlock(x, y, z);
@@ -2993,6 +3037,7 @@ function animate(now){
 
   netLerp(dt);
   updateRaycast();
+  updateMining(dt);
   updateHeld();
   renderer.render(scene, camera);
 }
