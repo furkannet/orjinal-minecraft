@@ -255,7 +255,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.13';
+const APP_VERSION = 'v0.1.14';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1778,12 +1778,10 @@ function updateDrops(dt){
 // Bir blok yüksekliğindeki basamağa çıkma (suda veya yerdeyken, hayatta kalma modunda)
 // Ayaklarının altında her köşe için katı zemin var mı (eğilirken kenardan düşmeyi engeller)
 function groundUnder(px, pz){
-  const gy = Math.floor(player.y - 0.1), r = 0.05; // neredeyse merkezden kontrol: kenara kadar gider
-  for(const [ox, oz] of [[-r,-r],[r,-r],[-r,r],[r,r]]){
-    const b = getBlock(Math.floor(px + ox), gy, Math.floor(pz + oz));
-    if(!(b > 0 && b !== 13 && b !== 24)) return false;
-  }
-  return true;
+  // Yalnızca merkezin altındaki blok sorulur: gövde kenardan biraz taşabilir (Minecraft gibi),
+  // ama merkez hâlâ bloğun üstündeyse yere oturur ve düşmez.
+  const b = getBlock(Math.floor(px), Math.floor(player.y - 0.1), Math.floor(pz));
+  return b > 0 && b !== 13 && b !== 24;
 }
 
 function tryStep(nx, nz){
