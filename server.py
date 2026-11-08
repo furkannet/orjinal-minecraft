@@ -89,6 +89,11 @@ async def handler(ws):
                     await broadcast(room, {"t": "p", "id": pid, "x": p["x"], "y": p["y"], "z": p["z"],
                                            "yaw": p["yaw"], "pitch": p["pitch"]}, skip=ws)
 
+            elif t == "reset" and room is not None and room is rooms["sky"]:
+                # Skyblock adasını sıfırla: blok değişikliklerini temizle, herkese bildir (ada istemcide yeniden kurulur)
+                room["mods"].clear()
+                await broadcast(room, {"t": "reset"})
+
             elif t == "bs":
                 flat = m.get("l") or []
                 out = []

@@ -275,7 +275,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.32';
+const APP_VERSION = 'v0.1.33';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -869,7 +869,12 @@ function skyCancelReset(){
 function skyDoReset(){
   for(const k of Object.keys(inv)) delete inv[k];
   for(const k of Object.keys(toolDur)) delete toolDur[k];
-  resetWorld(true);
+  if(netMode){ // çok oyuncu: ada sunucuda sıfırlanır, herkese 'reset' gider
+    if(net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify({t: 'reset'}));
+    else { toast('❌ Sunucu bağlı değil, sıfırlanamadı'); return; }
+  } else {
+    resetWorld(true);
+  }
   renderHotbar();
   togglePauseMenu(false);
   toast('♻ Ada sıfırlandı');
@@ -884,7 +889,7 @@ function togglePauseMenu(show){
   modal.style.display = isPaused ? 'flex' : 'none';
   updatePauseMenuUI();
   // Sıfırlama düğmesi yalnızca tek oyunculu skyblock'ta (çok oyuncuda ada ortaktır)
-  $('skyResetBox').style.display = (skyMode && !netMode) ? '' : 'none';
+  $('skyResetBox').style.display = skyMode ? '' : 'none';
   skyCancelReset();
   if(isPaused){
     if(document.pointerLockElement) document.exitPointerLock();
@@ -2280,6 +2285,7 @@ function netOnMessage(m){
   }
   else if(m.t === 'join'){ netAddPlayer(m); toast(`👋 ${m.name} katıldı`); }
   else if(m.t === 'leave') netRemovePlayer(m.id);
+  else if(m.t === 'reset') resetWorld(true, []); // ada sunucuda sıfırlandı: yeniden kur
 }
 
 function netEnter(m){
