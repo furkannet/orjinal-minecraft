@@ -204,7 +204,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;text-align:left;display:flex;justify-content:space-between;align-items:center">
       <div>
         <div style="font-weight:bold">🏝️ Skyblock (çevrimdışı)</div>
-        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına L şeklinde ada.</div>
+        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına 3x3 ada.</div>
       </div>
       <button class="mcMenuBtn" onclick="startSkyblock();closeSubModal('multiModal')" style="padding:6px 12px">Oyna</button>
     </div>
@@ -267,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.29';
+const APP_VERSION = 'v0.1.30';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -642,26 +642,25 @@ Object.assign(BLOCKS, {
   49: { id: 49, name: 'Sandık', icon: chestTex.canvas, getMats: () => LM(chestTex.tex) }
 });
 
-/* ---- Skyblock adası: L şeklinde 3 katman (alt taş, orta toprak, üst çim) ---- */
-// L şekli: z=4..5 satırları x=4..8 (üst kol), z=6..8 için x=4..5 (alt kol)
-const SKY_ISLAND_L = [];
-for(let z = 4; z <= 5; z++) for(let x = 4; x <= 8; x++) SKY_ISLAND_L.push([x, z]);
-for(let z = 6; z <= 8; z++) for(let x = 4; x <= 5; x++) SKY_ISLAND_L.push([x, z]);
+/* ---- Skyblock adası: 3x3, 3 katman (alt taş, orta toprak, üst çim) ---- */
+// 3x3 kare ada: x=4..6, z=4..6
+const SKY_ISLAND_CELLS = [];
+for(let z = 4; z <= 6; z++) for(let x = 4; x <= 6; x++) SKY_ISLAND_CELLS.push([x, z]);
 // Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı)
 function skyIslandBlocks(){
   const out = [];
-  for(const [x, z] of SKY_ISLAND_L){
+  for(const [x, z] of SKY_ISLAND_CELLS){
     out.push([x, SKY_Y - 2, z, 3]);  // alt katman: taş
     out.push([x, SKY_Y - 1, z, 2]);  // orta katman: toprak
     out.push([x, SKY_Y, z, 1]);      // üst: çim
   }
-  // Ağaç: gövde (7,91..93, z=5), üstünde 3x3 yapraklar (93..94)
-  for(let y = SKY_Y + 1; y <= SKY_Y + 3; y++) out.push([7, y, 5, 5]);
-  for(let y = SKY_Y + 3; y <= SKY_Y + 4; y++) for(let x = 6; x <= 8; x++) for(let z = 4; z <= 6; z++){
-    if(x === 7 && z === 5 && y === SKY_Y + 3) continue; // gövdenin yeri
+  // Ağaç: gövde (6,91..93), üstünde 3x3 yapraklar (93..94)
+  for(let y = SKY_Y + 1; y <= SKY_Y + 3; y++) out.push([6, y, 6, 5]);
+  for(let y = SKY_Y + 3; y <= SKY_Y + 4; y++) for(let x = 5; x <= 7; x++) for(let z = 5; z <= 7; z++){
+    if(x === 6 && z === 6 && y === SKY_Y + 3) continue; // gövdenin yeri
     out.push([x, y, z, 7]);
   }
-  out.push([8, SKY_Y + 1, 4, 49]);  // sandık
+  out.push([4, SKY_Y + 1, 6, 49]);  // sandık
   out.push([6, SKY_Y + 1, 4, 13]);  // su (taş jeneratörü)
   out.push([4, SKY_Y + 1, 4, 24]);  // lav (taş jeneratörü)
   return out;
@@ -910,7 +909,7 @@ function resetWorld(sky, mods){
   // Çok oyuncu: sunucudan gelen blok değişiklikleri [x,y,z,id,...] (chunk üretilmeden önce uygulanır)
   if(mods) for(let i = 0; i + 3 < mods.length; i += 4) recordMod(mods[i], mods[i+1], mods[i+2], mods[i+3]);
   if(sky){
-    player.x = 5.5; player.z = 6.5; player.y = SKY_Y + 1; player.vy = 0; // ada üstünde başlangıç
+    player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0; // ada ortasında başlangıç
     updateChunks(true);
   } else {
     initPlayerPosition();
@@ -3074,7 +3073,7 @@ function animate(now){
   }
 
   if(skyMode && player.y < SKY_Y - 20){ // Skyblock: adadan 20 blok aşağı düşünce başlangıç bloğuna geri ışınlan
-    player.x = 5.5; player.z = 6.5; player.y = SKY_Y + 1; player.vy = 0;
+    player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0;
   } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
     player.y = Math.max(h + 3, SEA_LEVEL + 3);
