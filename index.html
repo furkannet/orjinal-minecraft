@@ -203,10 +203,10 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;text-align:left;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-weight:bold">🟩 Yassı Dünya (çevrimdışı)</div>
-        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına düz bir arazi.</div>
+        <div style="font-weight:bold">🏝️ Skyblock (çevrimdışı)</div>
+        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına L şeklinde ada.</div>
       </div>
-      <button class="mcMenuBtn" onclick="startFlat();closeSubModal('multiModal')" style="padding:6px 12px">Oyna</button>
+      <button class="mcMenuBtn" onclick="startSkyblock();closeSubModal('multiModal')" style="padding:6px 12px">Oyna</button>
     </div>
 
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:14px;text-align:left">
@@ -275,7 +275,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.36';
+const APP_VERSION = 'v0.1.35';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -780,7 +780,7 @@ function toggleSoundSetting(){
 }
 
 function startSingleplayer(){
-  if(skyMode || flatMode) resetWorld(false);
+  if(skyMode) resetWorld(false);
   inMainMenu = false;
   $('mainMenu').classList.add('hidden');
   closeSubModal('charModal');
@@ -917,16 +917,12 @@ const SEA_LEVEL = 82; // Deniz seviyesi
 const MAX_BUILD_HEIGHT = 150; // Yukarı çıkma ve blok koyma sınırı
 // Skyblock: tek blokla başlayan gökyüzü dünyası (çok oyuncu "Giriş Yap" bunu açar)
 let skyMode = false;
-// Yassı dünya (çevrimdışı): her yerde aynı düz arazi; yerel kayda yazılmaz
-let flatMode = false;
-const FLAT_TOP = 60; // düz arazinin en üst çim bloğu (y = 60)
 // Çok oyuncu durumu (bkz. netConnect). netMode açıkken dünya sunucudan gelir ve yerel kayda yazılmaz.
 let netMode = false;
 const net = { ws: null, id: null, out: [], applying: false };
 const SKY_Y = 90;
-function resetWorld(sky, mods, flat = false){
+function resetWorld(sky, mods){
   skyMode = sky;
-  flatMode = flat;
   for(const ch of chunks.values()){ disposeChunkMesh(ch); chunkGroup.remove(ch.group); }
   chunks.clear(); dirtyChunks.clear(); _lastCh = null;
   worldMods.clear(); modsByChunk.clear(); modsDirty = true; spawnedChunks.clear();
@@ -937,19 +933,9 @@ function resetWorld(sky, mods, flat = false){
   if(sky){
     player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0; // ada ortasında başlangıç
     updateChunks(true);
-  } else if(flat){
-    player.x = 8.5; player.z = 8.5; player.y = FLAT_TOP + 2.5; player.vy = 0;
-    updateChunks(true);
   } else {
     initPlayerPosition();
   }
-}
-function startFlat(){
-  resetWorld(false, null, true);
-  inMainMenu = false;
-  $('mainMenu').classList.add('hidden');
-  closeSubModal('charModal'); closeSubModal('multiModal'); closeSubModal('settingsModal');
-  toast('🟩 Yassı dünya: düz arazide başla!');
 }
 function startSkyblock(){
   resetWorld(true);
@@ -1183,18 +1169,6 @@ function createChunk(cx, cz){
   const blocks = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * CHUNK_Y);
   const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false, maxY: 0 };
   chunkGroup.add(ch.group);
-  if(flatMode){ // Yassı dünya: her chunk aynı düz arazi (taş, toprak, çim)
-    for(let x = 0; x < CHUNK_SIZE; x++) for(let z = 0; z < CHUNK_SIZE; z++){
-      for(let y = 0; y <= FLAT_TOP; y++){
-        const id = y === FLAT_TOP ? 1 : (y >= FLAT_TOP - 2 ? 2 : 3);
-        blocks[x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
-      }
-    }
-    const cmF = modsByChunk.get(key);
-    if(cmF) for(const [idx, id] of cmF) blocks[idx] = id;
-    ch.maxY = FLAT_TOP;
-    return ch;
-  }
   if(skyMode){ // Skyblock: yalnızca başlangıç adası (chunk 0,0), gerisi boşluk
     if(cx === 0 && cz === 0) for(const [x, y, z, id] of skyIslandBlocks()) blocks[x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
     const cmS = modsByChunk.get(key);
@@ -2638,7 +2612,7 @@ function readSave(){
   } catch(e){ return null; }
 }
 function writeSave(){
-  if(skyMode || flatMode || netMode) return; // özel dünyalar ve çok oyuncu yerel kayda yazılmaz
+  if(skyMode || netMode) return; // çok oyuncu dünyası yerel kayda yazılmaz
   try{
     if(modsDirty){
       modsArrCache = [];
