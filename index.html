@@ -275,7 +275,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.39';
+const APP_VERSION = 'v0.1.40';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -657,13 +657,16 @@ function skyIslandBlocks(){
 }
 // Taş jeneratörü: su ile lavın arasındaki hücre boşsa taşa (kırıktaş) döner; kırılınca tekrar oluşur
 let skyGenT = 0;
-// Ada bloğu kırılırsa 1 sn sonra geri gelir (tek oyunculu ve sunucu aynı)
+// Ada bloğu kırılırsa 1 sn sonra geri gelir; geri gelen blok rastgele (çim, odun, taş, kum veya maden)
 let skyRespawnT = 0;
-let skyLastId = 1; // ada bloğunun son kırılan türü (başlangıçta çim)
+const SKY_RESPAWN_IDS = [1, 5, 3, 8, 14, 15, 16]; // çim, odun, taş, kum, kömür, demir, altın
+function skyPickIslandBlock(){
+  return SKY_RESPAWN_IDS[Math.floor(Math.random() * SKY_RESPAWN_IDS.length)];
+}
 function skyGeneratorTick(dt){
   if(getBlock(5, SKY_Y, 5) === 0){
     skyRespawnT += dt;
-    if(skyRespawnT >= 1){ skyRespawnT = 0; setBlock(5, SKY_Y, 5, skyLastId); }
+    if(skyRespawnT >= 1){ skyRespawnT = 0; setBlock(5, SKY_Y, 5, skyPickIslandBlock()); }
   } else skyRespawnT = 0;
   skyGenT += dt;
   if(skyGenT < 0.5) return;
@@ -932,7 +935,6 @@ function resetWorld(sky, mods){
   // Çok oyuncu: sunucudan gelen blok değişiklikleri [x,y,z,id,...] (chunk üretilmeden önce uygulanır)
   if(mods) for(let i = 0; i + 3 < mods.length; i += 4) recordMod(mods[i], mods[i+1], mods[i+2], mods[i+3]);
   if(sky){
-    skyLastId = 1; // yeni ada çimle başlar
     player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0; // ada ortasında başlangıç
     updateChunks(true);
   } else {
@@ -2882,7 +2884,6 @@ function breakTarget(){
   const { x, y, z } = targetInfo.hit;
   const id = getBlock(x, y, z);
   setBlock(x, y, z, 0);
-  if(skyMode && x === 5 && y === SKY_Y && z === 5) skyLastId = id; // ada bloğu geri gelirken aynı tür gelir
   playSound('break');
   if(gameMode === 'survival'){
     // Skyblock: kırılan bloğun kendisi düşer (hangi blok varsa o)
