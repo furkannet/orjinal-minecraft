@@ -268,7 +268,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.26';
+const APP_VERSION = 'v0.1.27';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2111,15 +2111,23 @@ const targetBox = new THREE.Mesh(boxGeo, wireMat);
 targetBox.visible = false;
 scene.add(targetBox);
 // Kırılma çatlakları: 10 aşama, her biri bir kez üretilen doküdan; tek ortak kutu (blok başına nesne yok)
+// Çatlaklar köşelerden başlar, piksel piksel merkeze doğru dolar; merkez en son dolar.
+// Piksel sırası: en yakın köşeye uzaklık (küçük bir gürültüyle, daha doğal görünsün).
+const crackOrder = [];
+for(let y = 0; y < 16; y++) for(let x = 0; x < 16; x++){
+  const dC = Math.min(
+    Math.hypot(x, y), Math.hypot(15 - x, y), Math.hypot(x, 15 - y), Math.hypot(15 - x, 15 - y)
+  );
+  const noise = ((x * 73856093 ^ y * 19349663) >>> 0) % 1000 / 1000; // sabit, rastgele-benzeri
+  crackOrder.push({x, y, d: dC + noise * 3});
+}
+crackOrder.sort((a, b) => a.d - b.d);
 const crackMats = [];
 for(let s = 0; s < 10; s++){
   const tex = makePixelTexture(cx => {
-    let seed = 1234 + s * 97;
-    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-    cx.fillStyle = 'rgba(0,0,0,0.75)';
-    const count = 3 + s * 4; // aşama ilerledikçe daha çok çatlak
-    for(let i = 0; i < count; i++) cx.fillRect((rnd() * 16) | 0, (rnd() * 16) | 0, 1, 1);
-    if(s > 4) for(let i = 0; i < s * 2; i++) cx.fillRect((rnd() * 16) | 0, (rnd() * 16) | 0, 1, 1);
+    const count = Math.round(crackOrder.length * (s + 1) / 10); // son aşamada merkez de dolar
+    cx.fillStyle = 'rgba(0,0,0,0.6)';
+    for(let i = 0; i < count; i++) cx.fillRect(crackOrder[i].x, crackOrder[i].y, 1, 1);
   });
   crackMats.push(new THREE.MeshBasicMaterial({map: tex.tex, transparent: true, depthWrite: false}));
 }
