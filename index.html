@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.56';
+const APP_VERSION = 'v0.1.57';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -805,8 +805,6 @@ function skyIslandBlocks(){
       out.push([x, SKY_Y, z, 1], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
     }
     const slab3 = (x, z, top) => out.push([x, SKY_Y, z, top], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
-    // Yol: L'den kuzeye (−z) portala uzanan 1 blok genişlikte tahta köprü
-    for(let z = 4; z >= -20; z--) slab3(5, z, 6);
     // Portal platformu (x4..6, z-25..-21)
     for(let x = 4; x <= 6; x++) for(let z = -25; z <= -21; z++) slab3(x, z, 1);
     // Portal çerçevesi (düzlem z=-23): çerçeve obsidyen, iç kısım mor portal
