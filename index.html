@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.55';
+const APP_VERSION = 'v0.1.56';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -734,6 +734,66 @@ Object.assign(BLOCKS, {
   56: { id: 56, name: 'Portal', icon: portalTex.canvas, getMats: () => LM(portalTex.tex) }
 });
 
+/* ---- Satıcı (57): sağ tıklayınca eşya takası; çok oyunculu Skyblock'un satıcı adasında ---- */
+const merchantTex = makePixelTexture(cx => {
+  cx.fillStyle = '#3a7a3a'; cx.fillRect(0, 0, 16, 16);          // yeşil cüppe
+  cx.fillStyle = '#d9a066'; cx.fillRect(4, 2, 8, 7);            // yüz
+  cx.fillStyle = '#5a3a1a'; cx.fillRect(4, 1, 8, 2);            // saç/şapka
+  cx.fillStyle = '#222222'; cx.fillRect(6, 5, 1, 1); cx.fillRect(9, 5, 1, 1); // gözler
+});
+Object.assign(BLOCKS, {
+  57: { id: 57, name: 'Satıcı', icon: merchantTex.canvas, getMats: () => LM(merchantTex.tex) }
+});
+// Takas listesi: çıktı (id, adet), girdi (id: adet) — yalnızca malzemeyle ödenir
+const SHOP_TRADES = [
+  { out: 29, n: 1, inp: {35: 4} },              // Elmas ← 4 Demir Külçesi
+  { out: 34, n: 1, inp: {35: 3, 32: 2} },       // Kılıç ← 3 Demir Külçesi + 2 Çubuk
+  { out: 37, n: 4, inp: {28: 1} },              // Pişmiş Et ×4 ← 1 Kömür
+  { out: 44, n: 1, inp: {29: 3, 32: 2} },       // Elmas Kazma ← 3 Elmas + 2 Çubuk
+];
+const shopModal = document.createElement('div');
+shopModal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:30;padding:12px';
+shopModal.innerHTML = '<div style="background:#181c24;border:2px solid #555;border-radius:12px;width:min(420px,94vw);max-height:85vh;overflow:auto;padding:14px;color:#f6f1e7;font-family:system-ui,sans-serif">' +
+  '<h3 style="margin:0 0 10px;font-size:15px;color:#4ade80">🛒 Satıcı <span style="font-size:11px;color:#a9b2bf">(takas: malzeme ile)</span></h3><div id="shopList"></div>' +
+  '<button id="shopClose" style="margin-top:8px;width:100%;padding:8px;border-radius:7px;border:1px solid #555;background:#2a2f3a;color:#fff;font:13px system-ui,sans-serif;cursor:pointer">Kapat</button></div>';
+(document.body || document.documentElement).appendChild(shopModal);
+function shopTradeText(t){ return Object.entries(t.inp).map(([id, c]) => `${BLOCKS[id].name} ×${c}`).join(' + '); }
+function renderShop(){
+  const list = shopModal.querySelector('#shopList');
+  list.innerHTML = '';
+  for(const t of SHOP_TRADES){
+    const can = gameMode === 'creative' || Object.entries(t.inp).every(([id, c]) => invCount(parseInt(id)) >= c);
+    const btn = document.createElement('button');
+    btn.disabled = !can;
+    btn.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px;padding:8px 10px;border-radius:7px;border:1px solid #555;background:' + (can ? '#243044' : '#1a1d24') + ';color:' + (can ? '#fff' : '#666') + ';font:13px system-ui,sans-serif;cursor:' + (can ? 'pointer' : 'default');
+    btn.textContent = `${BLOCKS[t.out].name} ×${t.n} ← ${shopTradeText(t)}`;
+    btn.onclick = () => {
+      if(gameMode === 'survival') for(const [id, c] of Object.entries(t.inp)) addItem(parseInt(id), -c);
+      addItem(t.out, t.n);
+      playSound('place');
+      renderShop();
+    };
+    list.appendChild(btn);
+  }
+}
+function openShop(){
+  renderShop();
+  shopModal.style.display = 'flex';
+  document.exitPointerLock?.();
+}
+function closeShop(){
+  shopModal.style.display = 'none';
+  if(!isTouchDevice) $('c').requestPointerLock?.();
+}
+shopModal.querySelector('#shopClose').onclick = closeShop;
+function tryShop(){
+  if(!targetInfo) return false;
+  const h = targetInfo.hit;
+  if(getBlock(h.x, h.y, h.z) !== 57) return false;
+  openShop();
+  return true;
+}
+
 /* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
 // Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı). Oyuncu bu bloğun üstünde doğar (5.5, SKY_Y+1, 5.5).
 function skyIslandBlocks(){
@@ -744,15 +804,20 @@ function skyIslandBlocks(){
     for(const [x, z] of [[5,5],[5,6],[5,7],[6,7],[7,7]]){
       out.push([x, SKY_Y, z, 1], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
     }
-    // Spawn'ın önünde (−z) küçük platform ve portal: çerçeve obsidyen, iç kısım mor portal
-    for(let x = 4; x <= 6; x++) for(let z = 2; z <= 4; z++){
-      if(z === 4 && x !== 5) continue; // L'ye bağlanan köprü: (5,4)
-      out.push([x, SKY_Y, z, 1], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
-    }
-    for(let x = 4; x <= 7; x++) out.push([x, SKY_Y + 1, 2, 19]);           // alt çerçeve
-    for(let y = 2; y <= 4; y++){ out.push([4, SKY_Y + y, 2, 19], [7, SKY_Y + y, 2, 19]); } // yan çerçeveler
-    for(let x = 4; x <= 7; x++) out.push([x, SKY_Y + 5, 2, 19]);           // üst çerçeve
-    for(let x = 5; x <= 6; x++) for(let y = 2; y <= 4; y++) out.push([x, SKY_Y + y, 2, 56]); // portal iç kısmı
+    const slab3 = (x, z, top) => out.push([x, SKY_Y, z, top], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
+    // Yol: L'den kuzeye (−z) portala uzanan 1 blok genişlikte tahta köprü
+    for(let z = 4; z >= -20; z--) slab3(5, z, 6);
+    // Portal platformu (x4..6, z-25..-21)
+    for(let x = 4; x <= 6; x++) for(let z = -25; z <= -21; z++) slab3(x, z, 1);
+    // Portal çerçevesi (düzlem z=-23): çerçeve obsidyen, iç kısım mor portal
+    const PZ = -23;
+    for(let x = 4; x <= 7; x++) out.push([x, SKY_Y + 1, PZ, 19]);
+    for(let y = 2; y <= 4; y++) out.push([4, SKY_Y + y, PZ, 19], [7, SKY_Y + y, PZ, 19]);
+    for(let x = 4; x <= 7; x++) out.push([x, SKY_Y + 5, PZ, 19]);
+    for(let x = 5; x <= 6; x++) for(let y = 2; y <= 4; y++) out.push([x, SKY_Y + y, PZ, 56]);
+    // Satıcı adası (x3..7, z-40..-36) ve satıcı bloğu (57)
+    for(let x = 3; x <= 7; x++) for(let z = -40; z <= -36; z++) slab3(x, z, 1);
+    out.push([5, SKY_Y + 1, -39, 57]);
     for(let y = 1; y <= 3; y++) out.push([7, SKY_Y + y, 7, 5]); // gövde (odun)
     for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
     out.push([7, SKY_Y + 5, 7, 7]);
@@ -1366,7 +1431,10 @@ function createChunk(cx, cz){
   const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false, maxY: 0 };
   chunkGroup.add(ch.group);
   if(skyMode){ // Skyblock: yalnızca başlangıç adası (chunk 0,0), gerisi boşluk
-    if(cx === 0 && cz === 0) for(const [x, y, z, id] of skyIslandBlocks()) blocks[x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
+    for(const [x, y, z, id] of skyIslandBlocks()){ // ada blokları, bu chunk'a düşenler
+      if(Math.floor(x / CHUNK_SIZE) !== cx || Math.floor(z / CHUNK_SIZE) !== cz) continue;
+      blocks[((x % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE + (((z % CHUNK_SIZE) + CHUNK_SIZE) % CHUNK_SIZE) * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
+    }
     const cmS = modsByChunk.get(key);
     if(cmS) for(const [idx, id] of cmS) blocks[idx] = id;
     ch.maxY = SKY_Y + 6;
@@ -2637,6 +2705,7 @@ window.addEventListener('mousedown', e => {
     if(swingPh === 0) swingPh = 0.0001; // el vuruşu
   }
   else if(e.button === 2){
+    if(tryShop()) return; // Satıcıya sağ tıklayınca takas listesi açılır
     if(tryUseDoor()) return; // Kapıya bakıp sağ tıklayınca açılır/kapanır
     if(!tryEat()) placeTarget(); // Yiyecek seçiliyse ye, değilse blok koy
   }
@@ -3357,11 +3426,11 @@ function animate(now){
     player.vy = Math.min(player.vy, 0);
   }
 
-  // Çok oyunculu Skyblock'ta portala girince normal dünya odasına geçilir
-  if(netMode && netRoomName === 'sky' && !portalBusy && getBlock(Math.floor(player.x), Math.floor(player.y + 1), Math.floor(player.z)) === 56){
-    portalBusy = true;
-    toast('🌀 Normal dünyaya geçiliyor...');
-    netConnect('normal');
+  // Çok oyunculu Skyblock'ta portala girince satıcı adasına ışınlanılır
+  if(netMode && netRoomName === 'sky' && getBlock(Math.floor(player.x), Math.floor(player.y + 1), Math.floor(player.z)) === 56){
+    player.x = 5.5; player.z = -36.5; player.y = SKY_Y + 1; player.vy = 0;
+    updateChunks(true);
+    toast('🛒 Satıcı adasına ışınlandın');
   }
   if(skyMode && player.y < SKY_Y - 20){ // Skyblock: adadan 20 blok aşağı düşünce başlangıç bloğuna geri ışınlan
     player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0;
