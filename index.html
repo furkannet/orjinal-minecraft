@@ -101,7 +101,6 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
   <div><b>Mod:</b> <span id="modeText" style="color:var(--mc-gold)">Hayatta Kalma</span></div>
   <div><b>XYZ:</b> <span id="coords">0, 0, 0</span></div>
   <div><b>Chunk:</b> <span id="chunkVal">0, 0</span></div>
-  <div id="skyRow" style="display:none"><b>Seviye:</b> <span id="skyLvl">1 (0/200)</span></div>
   <div><b>Seed:</b> <span id="seedVal">0</span></div>
   <div><b>Seçili:</b> <span id="blockName">Çim</span></div>
 </div>
@@ -204,8 +203,8 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
     <div style="background:#181c24;border:2px solid #333;border-radius:6px;padding:12px;margin-bottom:10px;text-align:left;display:flex;justify-content:space-between;align-items:center">
       <div>
-        <div style="font-weight:bold">🏝️ Tek Blok (çevrimdışı)</div>
-        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına skyblock.</div>
+        <div style="font-weight:bold">🏝️ Skyblock (çevrimdışı)</div>
+        <div style="font-size:11px;color:#aaa">Sunucu olmadan, tek başına L şeklinde ada.</div>
       </div>
       <button class="mcMenuBtn" onclick="startSkyblock();closeSubModal('multiModal')" style="padding:6px 12px">Oyna</button>
     </div>
@@ -268,7 +267,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.28';
+const APP_VERSION = 'v0.1.29';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -632,27 +631,56 @@ const BLOCKS = {
   26: { id: 26, name: 'Örs', icon: TEXTURES.anvil.canvas, getMats: () => LM(TEXTURES.anvil.tex) }
 };
 
-// Skyblock seviyeleri: her seviyenin kendi bloğu adada çıkar. Her kırılışta blok (tek adet) eline gelir
-// ve ada hücresi aynı bloğa döner. 200 blok kırınca bir üst seviyeye geçilir.
-const SKY_LEVEL_BLOCKS = [5, 2, 3, 14, 15, 16, 8, 4, 11]; // Seviye 1..9: Odun, Toprak, Taş, Kömür, Demir, Altın, Kum, Kırıktaş, Elmas
-const SKY_BREAKS_PER_LEVEL = 200;
-let skyLevel = 1, skyCount = 0;
-function skyCellBlock(){ return SKY_LEVEL_BLOCKS[skyLevel - 1]; }
-function skyUpdateHud(){
-  const row = $('skyRow');
-  if(row) row.style.display = skyMode ? '' : 'none';
-  const el = $('skyLvl');
-  if(el) el.textContent = `${skyLevel} (${skyCount}/${SKY_BREAKS_PER_LEVEL})`;
-}
-function skyBlockMined(id){
-  addItem(id, 1);
-  skyCount++;
-  if(skyCount >= SKY_BREAKS_PER_LEVEL && skyLevel < SKY_LEVEL_BLOCKS.length){
-    skyLevel++; skyCount = 0;
-    toast(`⭐ Seviye ${skyLevel}! Yeni blok: ${BLOCKS[skyCellBlock()].name}`);
+/* ---- Skyblock sandığı (49) ---- */
+const chestTex = makePixelTexture(cx => {
+  cx.fillStyle = '#8b5a2b'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#5a3a1a'; cx.fillRect(0, 0, 16, 1); cx.fillRect(0, 15, 16, 1); cx.fillRect(0, 0, 1, 16); cx.fillRect(15, 0, 1, 16);
+  cx.fillRect(0, 7, 16, 1);
+  cx.fillStyle = '#d4af37'; cx.fillRect(7, 6, 2, 3);
+});
+Object.assign(BLOCKS, {
+  49: { id: 49, name: 'Sandık', icon: chestTex.canvas, getMats: () => LM(chestTex.tex) }
+});
+
+/* ---- Skyblock adası: L şeklinde 3 katman (alt taş, orta toprak, üst çim) ---- */
+// L şekli: z=4..5 satırları x=4..8 (üst kol), z=6..8 için x=4..5 (alt kol)
+const SKY_ISLAND_L = [];
+for(let z = 4; z <= 5; z++) for(let x = 4; x <= 8; x++) SKY_ISLAND_L.push([x, z]);
+for(let z = 6; z <= 8; z++) for(let x = 4; x <= 5; x++) SKY_ISLAND_L.push([x, z]);
+// Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı)
+function skyIslandBlocks(){
+  const out = [];
+  for(const [x, z] of SKY_ISLAND_L){
+    out.push([x, SKY_Y - 2, z, 3]);  // alt katman: taş
+    out.push([x, SKY_Y - 1, z, 2]);  // orta katman: toprak
+    out.push([x, SKY_Y, z, 1]);      // üst: çim
   }
-  setBlock(8, SKY_Y, 8, skyCellBlock());
-  skyUpdateHud();
+  // Ağaç: gövde (7,91..93, z=5), üstünde 3x3 yapraklar (93..94)
+  for(let y = SKY_Y + 1; y <= SKY_Y + 3; y++) out.push([7, y, 5, 5]);
+  for(let y = SKY_Y + 3; y <= SKY_Y + 4; y++) for(let x = 6; x <= 8; x++) for(let z = 4; z <= 6; z++){
+    if(x === 7 && z === 5 && y === SKY_Y + 3) continue; // gövdenin yeri
+    out.push([x, y, z, 7]);
+  }
+  out.push([8, SKY_Y + 1, 4, 49]);  // sandık
+  out.push([6, SKY_Y + 1, 4, 13]);  // su (taş jeneratörü)
+  out.push([4, SKY_Y + 1, 4, 24]);  // lav (taş jeneratörü)
+  return out;
+}
+// Taş jeneratörü: su ile lavın arasındaki hücre boşsa taşa (kırıktaş) döner; kırılınca tekrar oluşur
+let skyGenT = 0;
+function skyGeneratorTick(dt){
+  skyGenT += dt;
+  if(skyGenT < 0.5) return;
+  skyGenT = 0;
+  const x = 5, y = SKY_Y + 1, z = 4;
+  if(getBlock(x, y, z) !== 0) return;
+  let water = false, lava = false;
+  for(const [dx, dy, dz] of [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]]){
+    const b = getBlock(x + dx, y + dy, z + dz);
+    if(b === 13) water = true;
+    else if(b === 24) lava = true;
+  }
+  if(water && lava) setBlock(x, y, z, 4);
 }
 
 /* ---- Eşyalar (27-39, yerleştirilemez) ve çalışma masası (40) ---- */
@@ -882,13 +910,11 @@ function resetWorld(sky, mods){
   // Çok oyuncu: sunucudan gelen blok değişiklikleri [x,y,z,id,...] (chunk üretilmeden önce uygulanır)
   if(mods) for(let i = 0; i + 3 < mods.length; i += 4) recordMod(mods[i], mods[i+1], mods[i+2], mods[i+3]);
   if(sky){
-    skyLevel = 1; skyCount = 0;
-    player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
+    player.x = 5.5; player.z = 6.5; player.y = SKY_Y + 1; player.vy = 0; // ada üstünde başlangıç
     updateChunks(true);
   } else {
     initPlayerPosition();
   }
-  skyUpdateHud();
 }
 function startSkyblock(){
   resetWorld(true);
@@ -1122,11 +1148,11 @@ function createChunk(cx, cz){
   const blocks = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * CHUNK_Y);
   const ch = { cx, cz, key, blocks, group: new THREE.Group(), meshBuilt: false, maxY: 0 };
   chunkGroup.add(ch.group);
-  if(skyMode){ // Skyblock: yalnızca başlangıç noktasında tek blok, gerisi boşluk
-    if(cx === 0 && cz === 0) blocks[8 + 8 * CHUNK_SIZE + SKY_Y * CHUNK_SIZE * CHUNK_SIZE] = skyCellBlock(); // ada bloğu (sıradaki seviyenin)
+  if(skyMode){ // Skyblock: yalnızca başlangıç adası (chunk 0,0), gerisi boşluk
+    if(cx === 0 && cz === 0) for(const [x, y, z, id] of skyIslandBlocks()) blocks[x + z * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
     const cmS = modsByChunk.get(key);
     if(cmS) for(const [idx, id] of cmS) blocks[idx] = id;
-    ch.maxY = SKY_Y;
+    ch.maxY = SKY_Y + 6;
     return ch;
   }
   const firstTime = !spawnedChunks.has(key);
@@ -1739,7 +1765,7 @@ function addItem(id, n){
   renderHotbar();
   if($('invModal').style.display === 'flex') renderInventoryGrid(); // Açıkken envanter canlı güncellensin
 }
-function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47].includes(id); }
+function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49].includes(id); }
 function nearBlock(id, r = 4.5){
   const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
   for(let x = px - 4; x <= px + 4; x++) for(let y = py - 4; y <= py + 4; y++) for(let z = pz - 4; z <= pz + 4; z++){
@@ -2830,11 +2856,6 @@ function breakTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
   const id = getBlock(x, y, z);
-  if(skyMode && x === 8 && y === SKY_Y && z === 8 && id === skyCellBlock()){ // Skyblock: ada bloğu eline gelir
-    skyBlockMined(id);
-    playSound('break');
-    return;
-  }
   setBlock(x, y, z, 0);
   playSound('break');
   if(gameMode === 'survival'){
@@ -3053,8 +3074,7 @@ function animate(now){
   }
 
   if(skyMode && player.y < SKY_Y - 20){ // Skyblock: adadan 20 blok aşağı düşünce başlangıç bloğuna geri ışınlan
-    player.x = 8.5; player.z = 8.5; player.y = SKY_Y + 1; player.vy = 0;
-    if(getBlock(8, SKY_Y, 8) !== skyCellBlock()) setBlock(8, SKY_Y, 8, skyCellBlock()); // ada hücresi sıradaki bloğa döner
+    player.x = 5.5; player.z = 6.5; player.y = SKY_Y + 1; player.vy = 0;
   } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
     player.y = Math.max(h + 3, SEA_LEVEL + 3);
@@ -3073,6 +3093,7 @@ function animate(now){
   }
 
   netLerp(dt);
+  if(skyMode) skyGeneratorTick(dt);
   updateRaycast();
   updateMining(dt);
   updateHeld();
