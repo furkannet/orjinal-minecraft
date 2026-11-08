@@ -279,7 +279,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.47';
+const APP_VERSION = 'v0.1.48';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1515,6 +1515,10 @@ const FACE_VERTS = [
 const FACE_UV = [[0,0],[1,0],[1,1],[0,1]];
 const TRANSP = new Uint8Array(256);
 TRANSP[0] = TRANSP[9] = TRANSP[13] = 1; // hava, cam, su
+TRANSP[55] = 1; // açık kapı: çizilmez (boş görünür), komşular yüzünü gösterir
+// Üzerinden geçilebilen (katı olmayan) bloklar: su, lav, açık kapı, merdiven
+const NONSOLID = new Uint8Array(256);
+NONSOLID[13] = NONSOLID[24] = NONSOLID[55] = NONSOLID[51] = 1;
 function isTransparentBlock(id){ return TRANSP[id] === 1; }
 
 function disposeChunkMesh(ch){
@@ -2108,7 +2112,7 @@ function groundUnder(px, pz){
   // Yalnızca merkezin altındaki blok sorulur: gövde kenardan biraz taşabilir (Minecraft gibi),
   // ama merkez hâlâ bloğun üstündeyse yere oturur ve düşmez.
   const b = getBlock(Math.floor(px), Math.floor(player.y - 0.1), Math.floor(pz));
-  return b > 0 && b !== 13 && b !== 24;
+  return b > 0 && !NONSOLID[b];
 }
 
 function tryStep(nx, nz){
@@ -2122,7 +2126,7 @@ function tryStep(nx, nz){
 // Iki nokta arasında katı blok var mı (duvar arkasını engeller)
 function solidAt(x, y, z){
   const b = getBlock(x, y, z);
-  return b > 0 && b !== 13 && b !== 24;
+  return b > 0 && !NONSOLID[b];
 }
 function hasLineOfSight(ax, ay, az, bx, by, bz){
   const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay, bz - az) / 0.25));
@@ -2385,7 +2389,7 @@ function collide(px, py, pz){
     for(let z = minZ; z <= maxZ; z++){
       for(let y = minY; y <= maxY; y++){
         const b = getBlock(x, y, z);
-        if(b > 0 && b !== 13 && b !== 24) return true; // Su ve lav içinden geçilebilir
+        if(b > 0 && !NONSOLID[b]) return true; // Su, lav, açık kapı ve merdiven içinden geçilebilir
       }
     }
   }
@@ -2590,6 +2594,7 @@ window.addEventListener('mousedown', e => {
     if(swingPh === 0) swingPh = 0.0001; // el vuruşu
   }
   else if(e.button === 2){
+    if(tryUseDoor()) return; // Kapıya bakıp sağ tıklayınca açılır/kapanır
     if(!tryEat()) placeTarget(); // Yiyecek seçiliyse ye, değilse blok koy
   }
 });
@@ -3055,10 +3060,29 @@ function updateMining(dt){
   }
 }
 
+// Kapı: kapalı (54) ↔ açık (55). Açıkken geçilebilir ve boş görünür.
+function tryUseDoor(){
+  if(!targetInfo) return false;
+  const { x, y, z } = targetInfo.hit;
+  const b = getBlock(x, y, z);
+  if(b !== 54 && b !== 55) return false;
+  if(b === 55){ // kapanacak hücrede oyuncu varsa kapanmaz
+    const pxI = Math.floor(player.x), pzI = Math.floor(player.z);
+    if(pxI === x && pzI === z && y >= Math.floor(player.y) && y <= Math.floor(player.y + player.height)){
+      toast('Kapının içindeyken kapatamazsın');
+      return true;
+    }
+  }
+  setBlock(x, y, z, b === 54 ? 55 : 54);
+  playSound('place');
+  return true;
+}
+
 function breakTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
-  const id = getBlock(x, y, z);
+  let id = getBlock(x, y, z);
+  if(id === 55) id = 54; // açık kapı kırılınca kapı düşer
   setBlock(x, y, z, 0);
   playSound('break');
   if(gameMode === 'survival'){
@@ -3233,9 +3257,15 @@ function animate(now){
       player.onGround = false;
       playSound('jump');
     }
+    const px0 = Math.floor(player.x), pz0 = Math.floor(player.z);
+    const onLadder = getBlock(px0, Math.floor(player.y), pz0) === 51 || getBlock(px0, Math.floor(player.y + 1), pz0) === 51;
     if(inWater){
       // Suda yavaş batar; Space ile yüzeye çıkılır
       player.vy = keys['Space'] ? 2.2 : Math.max(player.vy - 3 * dt, -1.6);
+    } else if(onLadder){
+      // Merdivende: Space ile çıkılır, Shift/C ile inilir, bırakınca yerinde durur
+      player.vy = keys['Space'] ? 3.0 : ((keys['ShiftLeft'] || keys['KeyC']) ? -3.0 : 0);
+      player.onGround = false;
     } else {
       player.vy -= 22 * dt;
     }
