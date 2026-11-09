@@ -22,9 +22,46 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 876
 CHUNK_Y = 150
 SKY_SEED = 424242
 ROOMS = ("sky", "normal")
+NORMAL_SEED = 730311  # normal dünya tohumu sabit: istemci değiştiremez, sunucu yeniden başlasa da aynı kalır
+STATE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "world_state.json")
 
-rooms = {r: {"seed": SKY_SEED if r == "sky" else None, "mods": {}, "players": {}, "clients": set(),
+rooms = {r: {"seed": SKY_SEED if r == "sky" else NORMAL_SEED, "mods": {}, "players": {}, "clients": set(),
              "slots": {}, "byname": {}} for r in ROOMS}  # slots: ada no -> isim (yalnızca sky odası)
+dirty = False
+
+
+def load_state():
+    """Kayıtlı dünya değişikliklerini ve ada atamalarını diskten yükler (sunucu yeniden başlasa da kalır)."""
+    if not os.path.exists(STATE_FILE):
+        return
+    try:
+        with open(STATE_FILE, encoding="utf-8") as f:
+            data = json.load(f)
+        for r in ROOMS:
+            if r in data:
+                rooms[r]["mods"] = data[r].get("mods", {})
+                rooms[r]["slots"] = {int(k): v for k, v in data[r].get("slots", {}).items()}
+                rooms[r]["byname"] = data[r].get("byname", {})
+    except (OSError, ValueError):
+        print("world_state.json okunamadı, boş dünya ile başlanıyor", flush=True)
+
+
+def save_state():
+    data = {r: {"mods": rooms[r]["mods"], "slots": {str(k): v for k, v in rooms[r]["slots"].items()},
+                "byname": rooms[r]["byname"]} for r in ROOMS}
+    tmp = STATE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f)
+    os.replace(tmp, STATE_FILE)
+
+
+async def saver():
+    global dirty
+    while True:
+        await asyncio.sleep(2)
+        if dirty:
+            dirty = False
+            save_state()
 SKY_SLOTS = 16  # Skyblock'ta en fazla 16 ayrı ada (4x4 ızgara)
 next_id = 1
 
@@ -49,7 +86,7 @@ def valid_block(x, y, z, bid):
 
 
 async def handler(ws):
-    global next_id
+    global next_id, dirty
     room = None
     pid = None
     try:
@@ -64,9 +101,6 @@ async def handler(ws):
                 name = str(m.get("name", "Oyuncu"))[:16]
                 rname = m.get("room") if m.get("room") in ROOMS else "normal"
                 room = rooms[rname]
-                if room["seed"] is None:
-                    seed = m.get("seed")
-                    room["seed"] = seed if isinstance(seed, int) else 123456
                 pid = next_id
                 next_id += 1
                 slot = -1
@@ -79,6 +113,7 @@ async def handler(ws):
                             slot = free[0]
                             room["slots"][slot] = name
                             room["byname"][name] = slot
+                            dirty = True
                             await broadcast(room, {"t": "slot", "i": slot, "name": name}, skip=ws)
                 mods = []
                 for key, bid in room["mods"].items():
@@ -106,6 +141,7 @@ async def handler(ws):
             elif t == "reset" and room is not None and room is rooms["sky"]:
                 # Skyblock adasını sıfırla: blok değişikliklerini temizle, herkese bildir (ada istemcide yeniden kurulur)
                 room["mods"].clear()
+                dirty = True
                 await broadcast(room, {"t": "reset"})
 
             elif t == "bs":
@@ -116,6 +152,7 @@ async def handler(ws):
                     if valid_block(x, y, z, bid):
                         room["mods"][f"{x},{y},{z}"] = bid
                         out += [x, y, z, bid]
+                        dirty = True
                 if out:
                     await broadcast(room, {"t": "bs", "l": out}, skip=ws)
     except websockets.ConnectionClosed:
@@ -128,6 +165,8 @@ async def handler(ws):
 
 
 async def main():
+    load_state()
+    asyncio.ensure_future(saver())
     print(f"Orijinal Minecraft sunucusu: ws://0.0.0.0:{PORT}  (odalar: {', '.join(ROOMS)})", flush=True)
     async with websockets.serve(handler, "0.0.0.0", PORT, max_size=2**22):
         await asyncio.Future()
