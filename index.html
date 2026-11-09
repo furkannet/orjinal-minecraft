@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.57';
+const APP_VERSION = 'v0.1.58';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -744,6 +744,17 @@ const merchantTex = makePixelTexture(cx => {
 Object.assign(BLOCKS, {
   57: { id: 57, name: 'Satıcı', icon: merchantTex.canvas, getMats: () => LM(merchantTex.tex) }
 });
+/* ---- Pazarcı (58): gizli pazarda para karşılığı alışveriş; Para (59): eşya değil, envanterde sayılır ---- */
+const marketTex = makePixelTexture(cx => {
+  cx.fillStyle = '#8a5a2a'; cx.fillRect(0, 0, 16, 16);          // kahverengi önlük
+  cx.fillStyle = '#ffaa00'; cx.fillRect(2, 2, 12, 3);           // sarı şapka bandı
+  cx.fillStyle = '#d9a066'; cx.fillRect(5, 6, 6, 6);            // yüz
+  cx.fillStyle = '#222222'; cx.fillRect(6, 8, 1, 1); cx.fillRect(9, 8, 1, 1);
+});
+Object.assign(BLOCKS, {
+  58: { id: 58, name: 'Pazarcı', icon: marketTex.canvas, getMats: () => LM(marketTex.tex) },
+  59: itemDef(59, 'Para', '#ffd23f', 'square')
+});
 // Takas listesi: çıktı (id, adet), girdi (id: adet) — yalnızca malzemeyle ödenir
 const SHOP_TRADES = [
   { out: 29, n: 1, inp: {35: 4} },              // Elmas ← 4 Demir Külçesi
@@ -776,8 +787,54 @@ function renderShop(){
     list.appendChild(btn);
   }
 }
+// Gizli pazar (58 Pazarcı): eşya satıp para kazanılır, para ile eşya alınır. Para = 59 (envanterde tutulur).
+const MARKET_SELL = { 3: 1, 4: 1, 5: 2, 8: 1, 27: 1, 28: 3, 29: 25, 30: 5, 31: 8, 35: 10, 36: 2 }; // eşya id -> 1 adet için para
+const MARKET_BUY = [ // eşya id, adet, fiyat (para)
+  { id: 37, n: 4, price: 8 },   // Pişmiş Et ×4 (yiyecek)
+  { id: 32, n: 2, price: 2 },   // Çubuk ×2
+  { id: 34, n: 1, price: 30 },  // Kılıç
+  { id: 43, n: 1, price: 20 },  // Demir Kazma
+  { id: 44, n: 1, price: 60 },  // Elmas Kazma
+  { id: 38, n: 1, price: 40 },  // Demir Zırh
+  { id: 45, n: 1, price: 25 },  // Kalkan
+];
+let shopKind = 'barter'; // 'barter' (57, takas) veya 'market' (58, para)
+function renderMarket(){
+  const list = shopModal.querySelector('#shopList');
+  list.innerHTML = '';
+  const coins = invCount(59);
+  const head = text => {
+    const h = document.createElement('div');
+    h.style.cssText = 'margin:8px 0 4px;font-size:12px;color:#fbbf24;font-weight:bold';
+    h.textContent = text;
+    list.appendChild(h);
+  };
+  const row = (text, can, act) => {
+    const btn = document.createElement('button');
+    btn.disabled = !can;
+    btn.style.cssText = 'display:block;width:100%;text-align:left;margin:0 0 6px;padding:8px 10px;border-radius:7px;border:1px solid #555;background:' + (can ? '#243044' : '#1a1d24') + ';color:' + (can ? '#fff' : '#666') + ';font:13px system-ui,sans-serif;cursor:' + (can ? 'pointer' : 'default');
+    btn.textContent = text;
+    btn.onclick = () => { act(); playSound('place'); renderMarket(); };
+    list.appendChild(btn);
+  };
+  head(`🪙 Paran: ${coins}  —  Eşya sat (para kazan)`);
+  for(const [idStr, price] of Object.entries(MARKET_SELL)){
+    const id = parseInt(idStr), have = invCount(id);
+    row(`${BLOCKS[id].name} ×1 → +${price} para (sende ${have})`, have > 0, () => { addItem(id, -1); addItem(59, price); });
+  }
+  head('Eşya al (para ile)');
+  for(const t of MARKET_BUY){
+    row(`${BLOCKS[t.id].name} ×${t.n} ← ${t.price} para`, coins >= t.price, () => { addItem(59, -t.price); addItem(t.id, t.n); });
+  }
+}
 function openShop(){
-  renderShop();
+  if(shopKind === 'market'){
+    shopModal.querySelector('h3').innerHTML = '🪙 Pazarcı <span style="font-size:11px;color:#a9b2bf">(sat, al: para ile)</span>';
+    renderMarket();
+  } else {
+    shopModal.querySelector('h3').innerHTML = '🛒 Satıcı <span style="font-size:11px;color:#a9b2bf">(takas: malzeme ile)</span>';
+    renderShop();
+  }
   shopModal.style.display = 'flex';
   document.exitPointerLock?.();
 }
@@ -789,7 +846,9 @@ shopModal.querySelector('#shopClose').onclick = closeShop;
 function tryShop(){
   if(!targetInfo) return false;
   const h = targetInfo.hit;
-  if(getBlock(h.x, h.y, h.z) !== 57) return false;
+  const b = getBlock(h.x, h.y, h.z);
+  if(b !== 57 && b !== 58) return false;
+  shopKind = b === 58 ? 'market' : 'barter';
   openShop();
   return true;
 }
@@ -819,10 +878,33 @@ function skyIslandBlocks(){
     for(let y = 1; y <= 3; y++) out.push([7, SKY_Y + y, 7, 5]); // gövde (odun)
     for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
     out.push([7, SKY_Y + 5, 7, 7]);
+    marketBlocks(out);
     return out;
   }
   return [[5, SKY_Y, 5, 1]]; // tek çim bloğu
 }
+// Gizli pazar: haritanın çok uzağında, kimsenin bilmediği bir yerde. Sunucu blok tutmaz; her istemci aynısını üretir.
+const MARKET_X = 1733, MARKET_Z = -1419; // pazarın merkezi (dünya koordinatı)
+const MARKET_SPAWN = [MARKET_X + 0.5, MARKET_Z + 0.5]; // pazara ışınlanınca doğulan nokta
+function marketBlocks(out){
+  const ox = MARKET_X, oz = MARKET_Z, Y = SKY_Y;
+  // 13x13 taş tuğla zemin, altında destek
+  for(let x = ox - 6; x <= ox + 6; x++) for(let z = oz - 6; z <= oz + 6; z++){
+    out.push([x, Y, z, 20], [x, Y - 1, z, 3]);
+  }
+  // Pazarcı evi: arka duvar, yan duvarlar ve çatı (ön taraf açık)
+  for(let x = ox - 4; x <= ox + 4; x++) for(let y = 1; y <= 3; y++) out.push([x, Y + y, oz - 5, 10]);
+  for(let z = oz - 4; z <= oz - 1; z++) for(let y = 1; y <= 3; y++) out.push([ox - 4, Y + y, z, 10], [ox + 4, Y + y, z, 10]);
+  for(let x = ox - 4; x <= ox + 4; x++) for(let z = oz - 5; z <= oz - 1; z++) out.push([x, Y + 4, z, 6]);
+  out.push([ox, Y + 1, oz - 4, 58]); // Pazarcı (sağ tıkla alışveriş)
+  // Dönüş portalı (düzlem z = oz+5): çerçeve obsidyen, iç kısım mor
+  const PZ = oz + 5;
+  for(let y = 1; y <= 3; y++) out.push([ox + 4, Y + y, PZ, 19], [ox + 7, Y + y, PZ, 19]);
+  for(let x = ox + 4; x <= ox + 7; x++) out.push([x, Y + 4, PZ, 19]);
+  for(let x = ox + 5; x <= ox + 6; x++) for(let y = 1; y <= 3; y++) out.push([x, Y + y, PZ, 56]);
+}
+// Pazar alanında mıyız? (yakın mesafe)
+function nearMarket(){ return Math.abs(player.x - MARKET_X) < 24 && Math.abs(player.z - MARKET_Z) < 24; }
 // Taş jeneratörü: su ile lavın arasındaki hücre boşsa taşa (kırıktaş) döner; kırılınca tekrar oluşur
 let skyGenT = 0;
 // Ada bloğu kırılırsa 1 sn sonra geri gelir; geri gelen blok rastgele (çim, odun, taş, kum veya maden)
@@ -3426,12 +3508,18 @@ function animate(now){
 
   // Çok oyunculu Skyblock'ta portala girince satıcı adasına ışınlanılır
   if(netMode && netRoomName === 'sky' && getBlock(Math.floor(player.x), Math.floor(player.y + 1), Math.floor(player.z)) === 56){
-    player.x = 5.5; player.z = -36.5; player.y = SKY_Y + 1; player.vy = 0;
+    if(nearMarket()){ // pazardaki portal: adaya döner
+      player.x = 5.5; player.z = -21.5; toast('🏝️ Adaya döndün');
+    } else { // adadaki portal: gizli pazara ışınlanır
+      player.x = MARKET_SPAWN[0]; player.z = MARKET_SPAWN[1]; toast('🪙 Gizli pazara ışınlandın');
+    }
+    player.y = SKY_Y + 1; player.vy = 0;
     updateChunks(true);
-    toast('🛒 Satıcı adasına ışınlandın');
   }
-  if(skyMode && player.y < SKY_Y - 20){ // Skyblock: adadan 20 blok aşağı düşünce başlangıç bloğuna geri ışınlan
-    player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0;
+  if(skyMode && player.y < SKY_Y - 20){ // Skyblock: düşünce pazardaysa pazara, değilse adanın başlangıcına geri ışınlan
+    if(netMode && nearMarket()){ player.x = MARKET_SPAWN[0]; player.z = MARKET_SPAWN[1]; }
+    else { player.x = 5.5; player.z = 5.5; }
+    player.y = SKY_Y + 1; player.vy = 0;
   } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
     player.y = Math.max(h + 3, SEA_LEVEL + 3);
