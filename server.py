@@ -44,7 +44,7 @@ async def broadcast(room, msg, skip=None):
 
 
 def valid_block(x, y, z, bid):
-    return all(isinstance(v, int) for v in (x, y, z, bid)) and abs(x) < 10**6 and abs(z) < 10**6 \
+    return all(isinstance(v, int) for v in (x, y, z, bid)) and abs(x) < 10**8 and abs(z) < 10**8 \
         and 0 <= y < CHUNK_Y and 0 <= bid < 256
 
 
