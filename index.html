@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.88';
+const APP_VERSION = 'v0.1.89';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -714,6 +714,32 @@ const boatTex = makePixelTexture(cx => {
 Object.assign(BLOCKS, {
   65: { id: 65, name: 'Tekne', icon: boatTex.canvas, getMats: () => LM(boatTex.tex) }
 });
+
+/* ---- Yeni blok grubu (66-75) ---- */
+function speckTex(base, dot, seed){
+  return makePixelTexture(cx => {
+    cx.fillStyle = base; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = dot;
+    for(let i = 0; i < 14; i++){
+      cx.fillRect(Math.floor(hash2D(i * 3.1 + seed, 1.7) * 15), Math.floor(hash2D(i * 5.3 + seed, 4.9) * 15), 2, 2);
+    }
+  });
+}
+for(const [id, name, base, dot] of [
+  [66, 'Lapis', '#2a4fa8', '#5a84e0'],
+  [67, 'Kızıltaş', '#8c2a2a', '#c94a4a'],
+  [68, 'Bal Bloğu', '#d9a520', '#f2d060'],
+  [69, 'Kaya Kristali', '#6a4aa0', '#b48ce8'],
+  [70, 'Mermer', '#d8d8d4', '#f4f4f0'],
+  [71, 'Kumtaşı Tuğlası', '#d8c488', '#b8a66a'],
+  [72, 'Kırmızı Kumtaşı', '#b9622e', '#8f4620'],
+  [73, 'Kiraz Tahtası', '#e0889c', '#c06478'],
+  [74, 'Bambu', '#a8c24a', '#7e9a30'],
+  [75, 'Çiçek Bloğu', '#3f8a3a', '#f0e04a']
+]){
+  const t = speckTex(base, dot, id * 1.9);
+  BLOCKS[id] = { id, name, icon: t.canvas, getMats: () => LM(t.tex) };
+}
 
 /* ---- Gerçekçi çalışma masası ve fırın; merdiven, yatak, halı, kapı ---- */
 const craftTopTex = makePixelTexture(cx => {
@@ -2518,7 +2544,7 @@ function addItem(id, n){
   renderHotbar();
   if($('invModal').style.display === 'flex') renderInventoryGrid(); // Açıkken envanter canlı güncellensin
 }
-function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49, 50, 51, 52, 53, 54, 60, 61, 62, 63, 64].includes(id); }
+function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49, 50, 51, 52, 53, 54, 60, 61, 62, 63, 64, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75].includes(id); }
 function nearBlock(id, r = 4.5){
   const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
   for(let x = px - 4; x <= px + 4; x++) for(let y = py - 4; y <= py + 4; y++) for(let z = pz - 4; z <= pz + 4; z++){
@@ -3329,6 +3355,15 @@ const RECIPES = [
   { out: 60, n: 4, inp: {62: 4}, furnace: true },                 // Kil -> Kiremit (pişirme)
   { out: 64, n: 1, inp: {5: 2, 6: 4}, table: true },              // Varil
   { out: 65, n: 1, inp: {6: 5}, table: true },                    // Tekne
+  { out: 66, n: 1, inp: {14: 2}, furnace: true },                 // Kömür -> Lapis (pişirme)
+  { out: 67, n: 4, inp: {4: 4}, table: true },                    // Kırıktaş -> Kızıltaş
+  { out: 68, n: 1, inp: {21: 4}, table: true },                   // 4 yün -> Bal bloğu
+  { out: 70, n: 4, inp: {3: 4}, furnace: true },                  // Taş -> Mermer (pişirme)
+  { out: 71, n: 4, inp: {47: 1}, table: true },                   // Kumtaşı -> Kumtaşı tuğlası
+  { out: 72, n: 4, inp: {8: 4}, furnace: true },                  // Kum -> Kırmızı kumtaşı (pişirme)
+  { out: 73, n: 4, inp: {5: 1}, table: true },                    // Odun -> Kiraz tahtası
+  { out: 74, n: 2, inp: {7: 2}, table: true },                    // Yaprak -> Bambu
+  { out: 75, n: 1, inp: {7: 1, 2: 1}, table: true },              // Yaprak + toprak -> Çiçek bloğu
   { out: 32, n: 4, inp: {6: 2} },                                 // Tahta -> Çubuk
   { out: 40, n: 1, inp: {6: 4} },                                 // Tahta -> Çalışma Masası
   { out: 33, n: 1, inp: {6: 3, 32: 2}, table: true },             // Kazma
