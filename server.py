@@ -23,7 +23,9 @@ CHUNK_Y = 150
 SKY_SEED = 424242
 ROOMS = ("sky", "normal")
 
-rooms = {r: {"seed": SKY_SEED if r == "sky" else None, "mods": {}, "players": {}, "clients": set()} for r in ROOMS}
+rooms = {r: {"seed": SKY_SEED if r == "sky" else None, "mods": {}, "players": {}, "clients": set(),
+             "slots": {}, "byname": {}} for r in ROOMS}  # slots: ada no -> isim (yalnızca sky odası)
+SKY_SLOTS = 16  # Skyblock'ta en fazla 16 ayrı ada (4x4 ızgara)
 next_id = 1
 
 
@@ -67,6 +69,17 @@ async def handler(ws):
                     room["seed"] = seed if isinstance(seed, int) else 123456
                 pid = next_id
                 next_id += 1
+                slot = -1
+                if rname == "sky":
+                    if name in room["byname"]:
+                        slot = room["byname"][name]
+                    else:
+                        free = [i for i in range(SKY_SLOTS) if i not in room["slots"]]
+                        if free:
+                            slot = free[0]
+                            room["slots"][slot] = name
+                            room["byname"][name] = slot
+                            await broadcast(room, {"t": "slot", "i": slot, "name": name}, skip=ws)
                 mods = []
                 for key, bid in room["mods"].items():
                     x, y, z = key.split(",")
@@ -74,6 +87,7 @@ async def handler(ws):
                 room["clients"].add(ws)
                 room["players"][pid] = {"id": pid, "name": name, "x": 8.5, "y": 0, "z": 8.5, "yaw": 0, "pitch": 0}
                 await send(ws, {"t": "welcome", "id": pid, "room": rname, "seed": room["seed"], "mods": mods,
+                          "slot": slot, "slots": {str(i): n for i, n in room["slots"].items()},
                           "players": [p for p in room["players"].values() if p["id"] != pid]})
                 await broadcast(room, {"t": "join", **room["players"][pid]}, skip=ws)
 

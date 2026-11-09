@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.64';
+const APP_VERSION = 'v0.1.65';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -855,10 +855,9 @@ function tryShop(){
 
 /* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
 // Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı). Oyuncu bu bloğun üstünde doğar (5.5, SKY_Y+1, 5.5).
-function skyIslandBlocks(){
-  if(netMode && netRoomName === 'sky'){
-    // Çok oyunculu Skyblock: 3x3 alanda L şeklinde çim + L'nin ucunda bir ağaç
-    const out = [];
+// Çok oyunculu Skyblock: her oyuncunun kendi adası (16 ada, 4x4 ızgara, hücre 64 blok).
+// Yerel ada koordinatları (x,z 3..7 ve -40..7) hücre içinde +48 kaydırılır.
+function skyLocalIsland(out){
     // 3 kat derinlik: üstte çim, altta iki kat toprak
     for(const [x, z] of [[5,5],[5,6],[5,7],[6,7],[7,7]]){
       out.push([x, SKY_Y, z, 1], [x, SKY_Y - 1, z, 2], [x, SKY_Y - 2, z, 2]);
@@ -878,10 +877,28 @@ function skyIslandBlocks(){
     for(let y = 1; y <= 3; y++) out.push([7, SKY_Y + y, 7, 5]); // gövde (odun)
     for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
     out.push([7, SKY_Y + 5, 7, 7]);
-    marketBlocks(out);
-    return out;
+}
+const SKY_CELL = 64, SKY_OFF = 48, SKY_SLOTS = 16;
+let skyNetCache = null;
+function skyHome(){ // oyuncunun kendi adasının kaydırma değeri [bx, bz]
+  if(netMode && netRoomName === 'sky' && net.slot >= 0) return [(net.slot % 4) * SKY_CELL + SKY_OFF, Math.floor(net.slot / 4) * SKY_CELL + SKY_OFF];
+  return [0, 0];
+}
+function skyIslandBlocks(){
+  if(netMode && netRoomName === 'sky'){
+    if(!skyNetCache){
+      const local = [];
+      skyLocalIsland(local);
+      skyNetCache = [];
+      for(let k = 0; k < SKY_SLOTS; k++){
+        const ox = (k % 4) * SKY_CELL + SKY_OFF, oz = Math.floor(k / 4) * SKY_CELL + SKY_OFF;
+        for(const b of local) skyNetCache.push([b[0] + ox, b[1], b[2] + oz, b[3]]);
+      }
+      marketBlocks(skyNetCache);
+    }
+    return skyNetCache;
   }
-  return [[5, SKY_Y, 5, 1]]; // tek çim bloğu
+  return [[5, SKY_Y, 5, 1]];
 }
 // Gizli pazar: haritanın çok uzağında, kimsenin bilmediği bir yerde. Sunucu blok tutmaz; her istemci aynısını üretir.
 const MARKET_X = 1733, MARKET_Z = -1419; // pazarın merkezi (dünya koordinatı)
@@ -930,6 +947,7 @@ function skyPickIslandBlock(){
   return SKY_RESPAWN_IDS[Math.floor(Math.random() * SKY_RESPAWN_IDS.length)];
 }
 function skyGeneratorTick(dt){
+  if(netMode) return; // çok oyuncuda her ada kendi yerinde; tek blok tohumu yok
   if(getBlock(5, SKY_Y, 5) === 0){
     skyRespawnT += dt;
     if(skyRespawnT >= 1){ skyRespawnT = 0; setBlock(5, SKY_Y, 5, skyPickIslandBlock()); }
@@ -1275,7 +1293,15 @@ let skyMode = false;
 let netMode = false;
 let netRoomName = null; // bağlı olunan oda: 'sky' veya 'normal'
 let portalBusy = false; // portala girildi, odalar değişiyor
-const net = { ws: null, id: null, out: [], applying: false };
+const net = { ws: null, id: null, out: [], applying: false, slot: -1 };
+const netSlotTaken = new Uint8Array(16); // dolu ada numaraları (sunucudan)
+function skyOwnedByOther(x, z){ // bu blok başkasının adasında mı?
+  if(!netMode || netRoomName !== 'sky' || x < 0 || z < 0) return false;
+  const cx = Math.floor(x / SKY_CELL), cz = Math.floor(z / SKY_CELL);
+  if(cx > 3 || cz > 3) return false;
+  const k = cz * 4 + cx;
+  return netSlotTaken[k] === 1 && k !== net.slot;
+}
 const SKY_Y = 90;
 function resetWorld(sky, mods){
   skyMode = sky;
@@ -1287,7 +1313,7 @@ function resetWorld(sky, mods){
   // Çok oyuncu: sunucudan gelen blok değişiklikleri [x,y,z,id,...] (chunk üretilmeden önce uygulanır)
   if(mods) for(let i = 0; i + 3 < mods.length; i += 4) recordMod(mods[i], mods[i+1], mods[i+2], mods[i+3]);
   if(sky){
-    player.x = 5.5; player.z = 5.5; player.y = SKY_Y + 1; player.vy = 0; // ada ortasında başlangıç
+    const [hx, hz] = skyHome(); player.x = hx + 5.5; player.z = hz + 5.5; player.y = SKY_Y + 1; player.vy = 0; // kendi adanın ortasında başlangıç
     updateChunks(true);
   } else {
     initPlayerPosition();
@@ -2661,12 +2687,16 @@ function netOnMessage(m){
   else if(m.t === 'join'){ netAddPlayer(m); toast(`👋 ${m.name} katıldı`); }
   else if(m.t === 'leave') netRemovePlayer(m.id);
   else if(m.t === 'reset') resetWorld(true, []); // ada sunucuda sıfırlandı: yeniden kur
+  else if(m.t === 'slot'){ if(m.i >= 0 && m.i < 16) netSlotTaken[m.i] = 1; }
 }
 
 function netEnter(m){
   mpStatus('');
   for(const pid of Array.from(netMeshes.keys())) netRemovePlayer(pid);
   net.id = m.id;
+  net.slot = (typeof m.slot === 'number') ? m.slot : -1;
+  netSlotTaken.fill(0);
+  for(const k of Object.keys(m.slots || {})) if(+k >= 0 && +k < 16) netSlotTaken[+k] = 1;
   netMode = true;
   netRoomName = m.room;
   portalBusy = false;
@@ -3312,6 +3342,7 @@ function breakTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
   let id = getBlock(x, y, z);
+  if(skyOwnedByOther(x, z)){ toast('Bu ada başkasına ait'); return; }
   // Gizli pazar ve portallar kırılamaz (tıklanınca hiçbir şey olmaz)
   if(id === 56 || (Math.abs(x - MARKET_X) <= 16 && Math.abs(z - MARKET_Z) <= 16)){
     toast('Bu blok kırılamaz');
@@ -3371,6 +3402,7 @@ function placeTarget(){
      y >= Math.floor(minY) && y <= Math.floor(maxY)){
     return;
   }
+  if(skyOwnedByOther(x, z)){ toast('Bu ada başkasına ait'); return; }
   const id = hotbarSlots[activeSlotIdx];
   if(id === 13){ floodWater(x, y, z); return; } // Su: kova gibi, yayılır (sınırsız)
   if(!isPlaceable(id)) return;
@@ -3545,7 +3577,7 @@ function animate(now){
   // Çok oyunculu Skyblock'ta portala girince satıcı adasına ışınlanılır
   if(netMode && netRoomName === 'sky' && getBlock(Math.floor(player.x), Math.floor(player.y + 1), Math.floor(player.z)) === 56){
     if(nearMarket()){ // pazardaki portal: adaya döner
-      player.x = 5.5; player.z = -21.5; toast('🏝️ Adaya döndün');
+      const [hx, hz] = skyHome(); player.x = hx + 5.5; player.z = hz - 21.5; toast('🏝️ Adaya döndün');
     } else { // adadaki portal: gizli pazara ışınlanır
       player.x = MARKET_SPAWN[0]; player.z = MARKET_SPAWN[1]; toast('🪙 Gizli pazara ışınlandın');
     }
@@ -3554,7 +3586,7 @@ function animate(now){
   }
   if(skyMode && player.y < SKY_Y - 20){ // Skyblock: düşünce pazardaysa pazara, değilse adanın başlangıcına geri ışınlan
     if(netMode && nearMarket()){ player.x = MARKET_SPAWN[0]; player.z = MARKET_SPAWN[1]; }
-    else { player.x = 5.5; player.z = 5.5; }
+    else { const [hx, hz] = skyHome(); player.x = hx + 5.5; player.z = hz + 5.5; }
     player.y = SKY_Y + 1; player.vy = 0;
   } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
