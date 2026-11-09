@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.60';
+const APP_VERSION = 'v0.1.61';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -878,49 +878,10 @@ function skyIslandBlocks(){
     for(let y = 1; y <= 3; y++) out.push([7, SKY_Y + y, 7, 5]); // gövde (odun)
     for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
     out.push([7, SKY_Y + 5, 7, 7]);
-    marketBlocks(out);
     return out;
   }
   return [[5, SKY_Y, 5, 1]]; // tek çim bloğu
 }
-// Gizli pazar: haritanın çok uzağında, kimsenin bilmediği bir yerde. Sunucu blok tutmaz; her istemci aynısını üretir.
-const MARKET_X = 1733, MARKET_Z = -1419; // pazarın merkezi (dünya koordinatı)
-const MARKET_SPAWN = [MARKET_X + 0.5, MARKET_Z + 0.5]; // pazara ışınlanınca doğulan nokta
-let marketCache = null; // pazar blokları bir kez hesaplanır (her chunk'ta yeniden üretilmez)
-function marketBlocks(out){
-  if(!marketCache) marketCache = buildMarket();
-  for(const b of marketCache) out.push(b);
-}
-function buildMarket(){
-  const out = [];
-  const ox = MARKET_X, oz = MARKET_Z, Y = SKY_Y;
-  // 31x31 taş tuğla zemin, altında destek
-  for(let x = ox - 15; x <= ox + 15; x++) for(let z = oz - 15; z <= oz + 15; z++){
-    out.push([x, Y, z, 20], [x, Y - 1, z, 3]);
-  }
-  // Köşe lambaları: taş tuğla sütun + ışıktaşı
-  for(const [dx, dz] of [[-14, -14], [14, -14], [-14, 14], [14, 14]]){
-    for(let y = 1; y <= 3; y++) out.push([ox + dx, Y + y, oz + dz, 20]);
-    out.push([ox + dx, Y + 4, oz + dz, 18]);
-  }
-  // Pazarcı salonu: 17 genişliğinde arka duvar, yan duvarlar ve çatı (ön taraf açık)
-  for(let x = ox - 8; x <= ox + 8; x++) for(let y = 1; y <= 4; y++) out.push([x, Y + y, oz - 10, 10]);
-  for(let z = oz - 9; z <= oz - 1; z++) for(let y = 1; y <= 4; y++) out.push([ox - 8, Y + y, z, 10], [ox + 8, Y + y, z, 10]);
-  for(let x = ox - 8; x <= ox + 8; x++) for(let z = oz - 10; z <= oz - 1; z++) out.push([x, Y + 5, z, 6]);
-  out.push([ox, Y + 1, oz - 6, 58]); // Pazarcı (sağ tıkla alışveriş)
-  // Tezgâhlar (tahta): salon içinde iki sıra, Pazarcının iki yanında
-  for(const x of [ox - 5, ox + 5]) for(let z = oz - 4; z <= oz - 2; z++) out.push([x, Y + 1, z, 6]);
-  // Açık pazar alanında sandıklar (eşya için)
-  for(const [dx, dz] of [[-6, 4], [6, 4], [-10, 8], [10, 8]]) out.push([ox + dx, Y + 1, oz + dz, 49]);
-  // Dönüş portalı (düzlem z = oz+12): çerçeve obsidyen, iç kısım mor
-  const PZ = oz + 12;
-  for(let y = 1; y <= 3; y++) out.push([ox + 4, Y + y, PZ, 19], [ox + 7, Y + y, PZ, 19]);
-  for(let x = ox + 4; x <= ox + 7; x++) out.push([x, Y + 4, PZ, 19]);
-  for(let x = ox + 5; x <= ox + 6; x++) for(let y = 1; y <= 3; y++) out.push([x, Y + y, PZ, 56]);
-  return out;
-}
-// Pazar alanında mıyız? (yakın mesafe)
-function nearMarket(){ return Math.abs(player.x - MARKET_X) < 24 && Math.abs(player.z - MARKET_Z) < 24; }
 // Taş jeneratörü: su ile lavın arasındaki hücre boşsa taşa (kırıktaş) döner; kırılınca tekrar oluşur
 let skyGenT = 0;
 // Ada bloğu kırılırsa 1 sn sonra geri gelir; geri gelen blok rastgele (çim, odun, taş, kum veya maden)
@@ -3297,11 +3258,6 @@ function breakTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
   let id = getBlock(x, y, z);
-  // Gizli pazar ve portallar kırılamaz (tıklanınca hiçbir şey olmaz)
-  if(id === 56 || (Math.abs(x - MARKET_X) <= 16 && Math.abs(z - MARKET_Z) <= 16)){
-    toast('Bu blok kırılamaz');
-    return;
-  }
   if(id === 55) id = 54; // açık kapı kırılınca kapı düşer
   setBlock(x, y, z, 0);
   playSound('break');
@@ -3527,19 +3483,8 @@ function animate(now){
     player.vy = Math.min(player.vy, 0);
   }
 
-  // Çok oyunculu Skyblock'ta portala girince satıcı adasına ışınlanılır
-  if(netMode && netRoomName === 'sky' && getBlock(Math.floor(player.x), Math.floor(player.y + 1), Math.floor(player.z)) === 56){
-    if(nearMarket()){ // pazardaki portal: adaya döner
-      player.x = 5.5; player.z = -21.5; toast('🏝️ Adaya döndün');
-    } else { // adadaki portal: gizli pazara ışınlanır
-      player.x = MARKET_SPAWN[0]; player.z = MARKET_SPAWN[1]; toast('🪙 Gizli pazara ışınlandın');
-    }
-    player.y = SKY_Y + 1; player.vy = 0;
-    updateChunks(true);
-  }
   if(skyMode && player.y < SKY_Y - 20){ // Skyblock: düşünce pazardaysa pazara, değilse adanın başlangıcına geri ışınlan
-    if(netMode && nearMarket()){ player.x = MARKET_SPAWN[0]; player.z = MARKET_SPAWN[1]; }
-    else { player.x = 5.5; player.z = 5.5; }
+    player.x = 5.5; player.z = 5.5;
     player.y = SKY_Y + 1; player.vy = 0;
   } else if(player.y < -10){
     const h = terrainHeight(Math.floor(player.x), Math.floor(player.z));
