@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.80';
+const APP_VERSION = 'v0.1.81';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1396,10 +1396,23 @@ function islandHeightAt(gx, gz){
 function terrainHeight(gx, gz){
   const isl = islandHeightAt(gx, gz);
   if(isl !== null) return isl;
-  // Ada dışı: kıta yok, her yer deniz tabanı (adalar birbirinden ayrı)
+  const n1 = smoothNoise(gx * 0.025, gz * 0.025) * 11;
+  const n2 = smoothNoise(gx * 0.07, gz * 0.07) * 4.5;
+  const n3 = smoothNoise(gx * 0.18, gz * 0.18) * 1.5;
+  const landH = 89 + n1 + n2 + n3;
+
+  // Deniz/Okyanus ve sahil yumuşak geçişi
+  const bOcean = smoothNoise(gx * 0.02 + 5000, gz * 0.02 + 5000);
+  if(bOcean <= 0.54) return Math.floor(landH);
+
+  // Deniz tabanı: çukurlu ve dalgalı zemin (dümdüz değil)
   const bedN1 = smoothNoise(gx * 0.035 + 1200, gz * 0.035 + 1200) * 10;
   const bedN2 = smoothNoise(gx * 0.09 + 800, gz * 0.09 + 800) * 5;
-  return Math.floor(SEA_LEVEL - 5 - (bedN1 + bedN2)); // 62-77 arası çukurlu zemin
+  const seaBedH = SEA_LEVEL - 5 - (bedN1 + bedN2); // 62 - 77 arası doğal çukurlar
+
+  const t = Math.min(1, Math.max(0, (bOcean - 0.54) / 0.18));
+  const smoothT = t * t * (3 - 2 * t);
+  return Math.floor(landH * (1 - smoothT) + seaBedH * smoothT);
 }
 
 /* ================= SONSUZ CHUNK VE KÖY SİSTEMİ ================= */
