@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.96';
+const APP_VERSION = 'v0.1.97';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1331,12 +1331,18 @@ Object.assign(BLOCKS, {
 const arrows = [];
 const arrowGroup = new THREE.Group();
 let bowCd = 0;
-function makeArrowMesh(){
+function makeArrowMesh(){ // ok: ince gövde, uçta metal uç, kuyrukta tüy kanatları (uç +z yönünde)
   const g = new THREE.Group();
-  const shaft = new THREE.Mesh(BG(0.05, 0.05, 0.6), ML(0xc49a45));
-  const head = new THREE.Mesh(BG(0.1, 0.1, 0.12), ML(0x555555));
-  head.position.z = -0.34;
-  g.add(shaft, head);
+  const shaft = new THREE.Mesh(BG(0.03, 0.03, 0.7), ML(0xc49a45));          // ahşap gövde
+  const tip = new THREE.Mesh(BG(0.08, 0.08, 0.1), ML(0x7a7f88));           // metal uç
+  tip.position.z = 0.4;
+  const tipEdge = new THREE.Mesh(BG(0.12, 0.12, 0.03), ML(0x9aa0aa));      // uç kenarı
+  tipEdge.position.z = 0.36;
+  const fletchA = new THREE.Mesh(BG(0.14, 0.12, 0.01), ML(0xd83a3a));      // tüy (kırmızı)
+  fletchA.position.z = -0.3;
+  const fletchB = new THREE.Mesh(BG(0.01, 0.12, 0.14), ML(0xf2f2f2));      // tüy (beyaz)
+  fletchB.position.z = -0.3;
+  g.add(shaft, tip, tipEdge, fletchA, fletchB);
   return g;
 }
 function damageMob(m, dmg){
