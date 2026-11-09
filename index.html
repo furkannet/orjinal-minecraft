@@ -234,6 +234,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
       <button class="mcMenuBtn" onclick="toggleGameMode()">🎮 Oyun Modu: <span id="settingModeSpan" style="color:var(--mc-gold)">Hayatta Kalma</span></button>
       <button class="mcMenuBtn" onclick="toggleKeepInv()">🛡️ Envanteri Koru: <span id="settingKeepInvSpan" style="color:#4ade80">Açık</span></button>
       <button class="mcMenuBtn" onclick="toggleSoundSetting()">🔊 Ses: <span id="settingSoundSpan" style="color:#4ade80">Açık</span></button>
+      <button class="mcMenuBtn" onclick="toggleFullscreen()">🖥️ Tam ekran: <span id="fsSpan">Kapalı</span></button>
     </div>
     <button class="mcMenuBtn" onclick="closeSubModal('settingsModal')" style="width:100%">Kaydet ve Kapat</button>
   </div>
@@ -282,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.77';
+const APP_VERSION = 'v0.1.78';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1072,6 +1073,19 @@ function updateSettingsUI(){
   }
 }
 
+function toggleFullscreen(){
+  const on = !document.fullscreenElement;
+  try{
+    if(on) document.documentElement.requestFullscreen?.();
+    else document.exitFullscreen?.();
+  } catch(e){ toast('❌ Tam ekran bu tarayıcıda desteklenmiyor'); }
+}
+function updateFullscreenUI(){
+  const el = $('fsSpan');
+  if(el){ el.textContent = document.fullscreenElement ? 'Açık' : 'Kapalı'; el.style.color = document.fullscreenElement ? '#4ade80' : '#ef4444'; }
+}
+document.addEventListener('fullscreenchange', updateFullscreenUI);
+window.addEventListener('keydown', e => { if(e.code === 'F11'){ e.preventDefault(); toggleFullscreen(); } });
 function toggleSoundSetting(){
   soundEnabled = !soundEnabled;
   updateSettingsUI();
