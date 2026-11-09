@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.85';
+const APP_VERSION = 'v0.1.86';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -705,6 +705,16 @@ Object.assign(BLOCKS, {
   64: { id: 64, name: 'Varil', icon: barrelTex.canvas, getMats: () => LM(barrelTex.tex) }
 });
 
+/* ---- Tekne (65): suya konur, binilir; sadece su üzerinde gider ---- */
+const boatTex = makePixelTexture(cx => {
+  cx.fillStyle = '#8b5a2b'; cx.fillRect(0, 0, 16, 16);
+  cx.fillStyle = '#6b4220'; cx.fillRect(0, 4, 16, 1); cx.fillRect(0, 11, 16, 1);
+  cx.fillStyle = '#4a2e14'; cx.fillRect(0, 0, 16, 2);
+});
+Object.assign(BLOCKS, {
+  65: { id: 65, name: 'Tekne', icon: boatTex.canvas, getMats: () => LM(boatTex.tex) }
+});
+
 /* ---- Gerçekçi çalışma masası ve fırın; merdiven, yatak, halı, kapı ---- */
 const craftTopTex = makePixelTexture(cx => {
   cx.fillStyle = '#b58a4f'; cx.fillRect(0, 0, 16, 16);
@@ -1048,6 +1058,90 @@ function tryChest(){
   if(getBlock(h.x, h.y, h.z) !== 49) return false;
   openChest(h.x + ',' + h.y + ',' + h.z);
   return true;
+}
+
+/* ---- Tekne: model, binme, sürme (sadece su üzerinde) ---- */
+const boats = [];
+const boatGroup = new THREE.Group();
+scene.add(boatGroup);
+let riding = null;
+function makeBoatMesh(){
+  const g = new THREE.Group();
+  const hull = new THREE.Mesh(BG(1.1, 0.3, 2.0), ML(0x8b5a2b));
+  const seat = new THREE.Mesh(BG(0.7, 0.25, 0.6), MB(0x6b4220));
+  seat.position.y = 0.25;
+  g.add(hull, seat);
+  return g;
+}
+function boatAhead(){ // oyuncunun baktığı yönde, 4 blok içinde su hücresi
+  const fx = -Math.sin(player.yaw), fz = -Math.cos(player.yaw);
+  const y0 = Math.floor(player.y);
+  for(let t = 0.5; t <= 4; t += 0.25){
+    const x = Math.floor(player.x + fx * t), z = Math.floor(player.z + fz * t);
+    for(const wy of [y0, y0 - 1]){
+      if(getBlock(x, wy, z) === 13 && getBlock(x, wy + 1, z) === 0) return { x, y: wy, z };
+    }
+  }
+  return null;
+}
+function nearestBoat(maxD){
+  let best = null, bd = maxD;
+  for(const b of boats){
+    const d = Math.hypot(b.x - player.x, b.z - player.z);
+    if(d < bd){ bd = d; best = b; }
+  }
+  return best;
+}
+function tryBoat(){
+  if(riding){ // sağ tık: inerken tekne yerinde kalır
+    riding = null;
+    toast('🚤 Tekneden indin');
+    return true;
+  }
+  const near = nearestBoat(2.5);
+  if(near){
+    riding = near;
+    toast('🚤 Teknedesin (W/A/S/D ile sür, sağ tıkla in)');
+    return true;
+  }
+  if(hotbarSlots[activeSlotIdx] !== 65) return false;
+  const w = boatAhead();
+  if(!w){ toast('Tekneyi suya koymak için suya bak'); return true; }
+  if(gameMode === 'survival') addItem(65, -1);
+  const b = { x: w.x + 0.5, z: w.z + 0.5, y: w.y + 0.95, yaw: player.yaw, mesh: makeBoatMesh() };
+  b.mesh.position.set(b.x, b.y, b.z);
+  boatGroup.add(b.mesh);
+  boats.push(b);
+  riding = b;
+  toast('🚤 Tekne suya kondu ve bindin');
+  return true;
+}
+function pickBoat(){ // T: yakındaki tekneyi al (binmiyorsan)
+  if(riding) return;
+  const b = nearestBoat(3);
+  if(!b){ toast('Yakında tekne yok'); return; }
+  boatGroup.remove(b.mesh);
+  boats.splice(boats.indexOf(b), 1);
+  addItem(65, 1);
+  toast('🚤 Tekne alındı');
+}
+function updateBoats(dt){
+  if(!riding) return;
+  const b = riding;
+  const fwd = (keys['KeyW'] ? 1 : 0) - (keys['KeyS'] ? 1 : 0);
+  const strafe = (keys['KeyD'] ? 1 : 0) - (keys['KeyA'] ? 1 : 0);
+  if(fwd || strafe){
+    const cosY = Math.cos(player.yaw), sinY = Math.sin(player.yaw);
+    const fx = -sinY * fwd, fz = -cosY * fwd, sx = cosY * strafe, sz = -sinY * strafe;
+    const len = Math.hypot(fx + sx, fz + sz) || 1;
+    const sp = 5 * dt;
+    const nx = b.x + (fx + sx) / len * sp, nz = b.z + (fz + sz) / len * sp;
+    if(getBlock(Math.floor(nx), b.y - 0.95, Math.floor(nz)) === 13){ b.x = nx; b.z = nz; }
+  }
+  b.yaw = player.yaw;
+  b.mesh.position.set(b.x, b.y, b.z);
+  b.mesh.rotation.y = b.yaw;
+  player.x = b.x; player.z = b.z; player.y = b.y; player.vy = 0; player.onGround = true;
 }
 
 function tryShop(){
@@ -3050,6 +3144,9 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyX'){
     toggleInventory();
   }
+  if(e.code === 'KeyT'){
+    pickBoat();
+  }
   if(e.code === 'KeyE'){
     toggleCraft();
   }
@@ -3090,6 +3187,7 @@ window.addEventListener('mousedown', e => {
   }
   else if(e.button === 2){
     if(tryShop()) return; // Satıcıya sağ tıklayınca takas listesi açılır
+    if(tryBoat()) return; // Tekne: suya koy / bin / in
     if(tryChest()) return; // Sandığa sağ tıklayınca sandık açılır
     if(tryUseDoor()) return; // Kapıya bakıp sağ tıklayınca açılır/kapanır
     if(!tryEat()) placeTarget(); // Yiyecek seçiliyse ye, değilse blok koy
@@ -3229,6 +3327,7 @@ const RECIPES = [
   { out: 63, n: 1, inp: {7: 4} },                                 // Yaprak -> Mantar bloğu
   { out: 60, n: 4, inp: {62: 4}, furnace: true },                 // Kil -> Kiremit (pişirme)
   { out: 64, n: 1, inp: {5: 2, 6: 4}, table: true },              // Varil
+  { out: 65, n: 1, inp: {6: 5}, table: true },                    // Tekne
   { out: 32, n: 4, inp: {6: 2} },                                 // Tahta -> Çubuk
   { out: 40, n: 1, inp: {6: 4} },                                 // Tahta -> Çalışma Masası
   { out: 33, n: 1, inp: {6: 3, 32: 2}, table: true },             // Kazma
@@ -3884,6 +3983,7 @@ function animate(now){
   }
 
   netLerp(dt);
+  updateBoats(dt);
   if(skyMode) skyGeneratorTick(dt);
   updateRaycast();
   updateMining(dt);
