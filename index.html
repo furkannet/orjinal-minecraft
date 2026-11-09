@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.83';
+const APP_VERSION = 'v0.1.84';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -854,6 +854,167 @@ function closeShop(){
   if(!isTouchDevice) $('c').requestPointerLock?.();
 }
 shopModal.querySelector('#shopClose').onclick = closeShop;
+/* ---- Batık gemi (normal dünyada deniz tabanında, seyrek) ve sandık envanteri (20 yuva) ---- */
+const WRECK_CELL = 48;
+const wreckCache = new Map();
+const wreckChestKeys = new Set(); // batık gemideki sandıklar ("x,y,z")
+const WRECK_LOOT = [[5, 6, 14], [4, 8, 20], [36, 1, 4], [27, 1, 3], [21, 1, 3], [3, 8, 16]]; // [id, en az, en çok]
+function wreckAtCell(cx2, cz2){ // bu hücrede batık gemi var mı (deterministik: tohuma bağlı arazi)
+  const k = cx2 + ',' + cz2;
+  if(wreckCache.has(k)) return wreckCache.get(k);
+  let res = null;
+  if(hash2D(cx2 * 7.7 + 3.1, cz2 * 5.3 + 1.9) > 0.93){
+    const ox = cx2 * WRECK_CELL + 8 + Math.floor(hash2D(cx2 * 3.3, cz2 * 9.1) * 28);
+    const oz = cz2 * WRECK_CELL + 8 + Math.floor(hash2D(cz2 * 4.7, cx2 * 2.9) * 28);
+    if(islandHeightAt(ox, oz) === null && terrainHeight(ox, oz) < SEA_LEVEL - 2){
+      res = { x: ox, z: oz, y: terrainHeight(ox + 3, oz + 1) + 1 };
+    }
+  }
+  wreckCache.set(k, res);
+  return res;
+}
+function wreckBlocks(w){ // gemi: 7x3 tahta taban, yan duvarlar, içinde bir sandık
+  const out = [], b = w.y;
+  for(let dx = 0; dx <= 6; dx++) for(let dz = 0; dz <= 2; dz++) out.push([w.x + dx, b, w.z + dz, 6]);
+  for(let dy = 1; dy <= 2; dy++){
+    for(let dx = 0; dx <= 6; dx++){ out.push([w.x + dx, b + dy, w.z, 5], [w.x + dx, b + dy, w.z + 2, 5]); }
+    for(let dz = 0; dz <= 2; dz++){ out.push([w.x, b + dy, w.z + dz, 5], [w.x + 6, b + dy, w.z + dz, 5]); }
+  }
+  out.push([w.x + 3, b + 1, w.z + 1, 49]);
+  return out;
+}
+function placeWrecksInChunk(blocks, cx, cz){
+  const x0 = cx * CHUNK_SIZE, z0 = cz * CHUNK_SIZE;
+  for(let wx = Math.floor((x0 - 64) / WRECK_CELL); wx <= Math.floor((x0 + CHUNK_SIZE + 64) / WRECK_CELL); wx++){
+    for(let wz = Math.floor((z0 - 64) / WRECK_CELL); wz <= Math.floor((z0 + CHUNK_SIZE + 64) / WRECK_CELL); wz++){
+      const w = wreckAtCell(wx, wz);
+      if(!w) continue;
+      for(const [x, y, z, id] of wreckBlocks(w)){
+        if(x < x0 || x >= x0 + CHUNK_SIZE || z < z0 || z >= z0 + CHUNK_SIZE || y < 0 || y >= CHUNK_Y) continue;
+        blocks[(x - x0) + (z - z0) * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE] = id;
+        if(id === 49) wreckChestKeys.add(x + ',' + y + ',' + z);
+      }
+    }
+  }
+}
+const CHEST_KEY = 'orijinalMinecraft.chests';
+const chestStore = new Map(); // "x,y,z" -> 20 yuvalık dizi ({id, n} veya null)
+try{
+  const d = JSON.parse(localStorage.getItem(CHEST_KEY) || 'null');
+  if(d) for(const k of Object.keys(d)) chestStore.set(k, d[k]);
+} catch(e){}
+function saveChests(){
+  try{
+    const o = {};
+    for(const [k, v] of chestStore) o[k] = v;
+    localStorage.setItem(CHEST_KEY, JSON.stringify(o));
+  } catch(e){}
+}
+function chestSlots(key){
+  let arr = chestStore.get(key);
+  if(!arr){
+    arr = new Array(20).fill(null);
+    if(wreckChestKeys.has(key)){ // batık gemi sandığı ilk açılışta ganimetle dolar
+      WRECK_LOOT.forEach(([id, lo, hi], i) => {
+        arr[i] = { id, n: lo + Math.floor(Math.random() * (hi - lo + 1)) };
+      });
+    }
+    chestStore.set(key, arr);
+    saveChests();
+  }
+  return arr;
+}
+let chestKey = null, chestModalEl = null;
+function ensureChestModal(){
+  if(chestModalEl) return chestModalEl;
+  const m = document.createElement('div');
+  m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);display:none;align-items:center;justify-content:center;z-index:30;padding:12px';
+  m.innerHTML = '<div style="background:#181c24;border:2px solid #555;border-radius:12px;width:min(460px,96vw);max-height:88vh;overflow:auto;padding:14px;color:#dfe6ef;font-family:sans-serif">' +
+    '<h3 style="margin:0 0 8px;color:#ffaa00;font-size:15px">📦 Sandık <span style="font-size:11px;color:#a9b2bf">(sandıktan almak için tıkla · envanterden koymak için tıkla)</span></h3>' +
+    '<div style="font-size:12px;margin-bottom:4px">Sandık (20 yuva)</div>' +
+    '<div id="chestGrid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px"></div>' +
+    '<div style="font-size:12px;margin-bottom:4px">Envanterin</div>' +
+    '<div id="chestInv" style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px"></div>' +
+    '<button id="chestClose" class="mcMenuBtn" style="width:100%">Kapat</button></div>';
+  document.body.appendChild(m);
+  m.querySelector('#chestClose').onclick = closeChest;
+  chestModalEl = m;
+  return m;
+}
+function openChest(key){
+  chestKey = key;
+  ensureChestModal().style.display = 'flex';
+  renderChest();
+  document.exitPointerLock?.();
+}
+function closeChest(){
+  if(chestModalEl) chestModalEl.style.display = 'none';
+  chestKey = null;
+  saveChests();
+}
+function renderChest(){
+  if(!chestKey || !chestModalEl) return;
+  const arr = chestSlots(chestKey);
+  const g = chestModalEl.querySelector('#chestGrid');
+  g.innerHTML = '';
+  arr.forEach((sl, i) => {
+    const d = document.createElement('div');
+    d.className = 'invItem';
+    d.style.cssText = 'height:58px;font-size:11px';
+    if(sl){
+      d.appendChild(copyIcon(BLOCKS[sl.id].icon));
+      const t = document.createElement('span');
+      t.textContent = `${BLOCKS[sl.id].name} x${sl.n}`;
+      d.appendChild(t);
+      d.onclick = () => takeFromChest(i);
+    }
+    g.appendChild(d);
+  });
+  const iv = chestModalEl.querySelector('#chestInv');
+  iv.innerHTML = '';
+  for(const k of Object.keys(inv)){
+    const id = +k, n = inv[id];
+    if(!n || !BLOCKS[id]) continue;
+    const d = document.createElement('div');
+    d.className = 'invItem';
+    d.style.cssText = 'height:58px;font-size:11px';
+    d.appendChild(copyIcon(BLOCKS[id].icon));
+    const t = document.createElement('span');
+    t.textContent = `${BLOCKS[id].name} x${n}`;
+    d.appendChild(t);
+    d.onclick = () => putToChest(id);
+    iv.appendChild(d);
+  }
+}
+function takeFromChest(i){
+  const arr = chestSlots(chestKey);
+  const sl = arr[i];
+  if(!sl) return;
+  addItem(sl.id, sl.n);
+  arr[i] = null;
+  saveChests();
+  renderChest();
+}
+function putToChest(id){
+  const arr = chestSlots(chestKey);
+  const n = inv[id] || 0;
+  if(!n) return;
+  let j = arr.findIndex(sl => sl && sl.id === id);
+  if(j < 0) j = arr.indexOf(null);
+  if(j < 0){ toast('Sandık dolu'); return; }
+  if(arr[j]) arr[j].n += n; else arr[j] = { id, n };
+  addItem(id, -n);
+  saveChests();
+  renderChest();
+}
+function tryChest(){
+  if(!targetInfo) return false;
+  const h = targetInfo.hit;
+  if(getBlock(h.x, h.y, h.z) !== 49) return false;
+  openChest(h.x + ',' + h.y + ',' + h.z);
+  return true;
+}
+
 function tryShop(){
   if(!targetInfo) return false;
   const h = targetInfo.hit;
@@ -1699,6 +1860,8 @@ function createChunk(cx, cz){
     }
   }
 
+  // Batık gemi (normal dünya, deniz tabanında, seyrek)
+  if(!skyMode) placeWrecksInChunk(blocks, cx, cz);
   // Çöl tapınağı (çöl biyomunda, seyrek)
   if(!isVillageChunk && hash2D(cx * 13.7 + 2, cz * 9.3) > 0.9 && biomeAt(cx * CHUNK_SIZE + 7, cz * CHUNK_SIZE + 7) === 'desert'){
     buildDesertTemple(blocks, cx, cz);
@@ -2831,6 +2994,7 @@ setInterval(() => {
 const keys = {};
 window.addEventListener('keydown', e => {
   keys[e.code] = true;
+  if(e.code === 'Escape' && chestModalEl && chestModalEl.style.display === 'flex'){ closeChest(); return; }
   if(e.code === 'Escape'){
     if(inMainMenu){
       closeSubModal('charModal');
@@ -2862,13 +3026,13 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 let isLocked = false;
 $('c').addEventListener('click', () => {
-  if(!isLocked && !isTouchDevice && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex' && craftModal.style.display !== 'flex'){
+  if(!isLocked && !isTouchDevice && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex' && craftModal.style.display !== 'flex' && !(chestModalEl && chestModalEl.style.display === 'flex')){
     $('c').requestPointerLock();
   }
 });
 document.addEventListener('pointerlockchange', () => {
   isLocked = document.pointerLockElement === $('c');
-  if(!isLocked && !isTouchDevice && !inMainMenu && $('invModal').style.display !== 'flex' && craftModal.style.display !== 'flex' && !isPaused){
+  if(!isLocked && !isTouchDevice && !inMainMenu && $('invModal').style.display !== 'flex' && craftModal.style.display !== 'flex' && !(chestModalEl && chestModalEl.style.display === 'flex') && !isPaused){
     togglePauseMenu(true);
   }
 });
@@ -2891,6 +3055,7 @@ window.addEventListener('mousedown', e => {
   }
   else if(e.button === 2){
     if(tryShop()) return; // Satıcıya sağ tıklayınca takas listesi açılır
+    if(tryChest()) return; // Sandığa sağ tıklayınca sandık açılır
     if(tryUseDoor()) return; // Kapıya bakıp sağ tıklayınca açılır/kapanır
     if(!tryEat()) placeTarget(); // Yiyecek seçiliyse ye, değilse blok koy
   }
