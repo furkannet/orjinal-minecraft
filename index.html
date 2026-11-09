@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.68';
+const APP_VERSION = 'v0.1.69';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -2807,6 +2807,9 @@ window.addEventListener('keydown', e => {
   if(e.code === 'KeyX'){
     toggleInventory();
   }
+  if(e.code === 'KeyE'){
+    toggleCraft();
+  }
   if(e.code === 'KeyM'){
     toggleGameMode();
   }
@@ -2815,13 +2818,13 @@ window.addEventListener('keyup', e => { keys[e.code] = false; });
 
 let isLocked = false;
 $('c').addEventListener('click', () => {
-  if(!isLocked && !isTouchDevice && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex'){
+  if(!isLocked && !isTouchDevice && !inMainMenu && !isPaused && $('invModal').style.display !== 'flex' && craftModal.style.display !== 'flex'){
     $('c').requestPointerLock();
   }
 });
 document.addEventListener('pointerlockchange', () => {
   isLocked = document.pointerLockElement === $('c');
-  if(!isLocked && !isTouchDevice && !inMainMenu && $('invModal').style.display !== 'flex' && !isPaused){
+  if(!isLocked && !isTouchDevice && !inMainMenu && $('invModal').style.display !== 'flex' && craftModal.style.display !== 'flex' && !isPaused){
     togglePauseMenu(true);
   }
 });
