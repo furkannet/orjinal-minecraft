@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.93';
+const APP_VERSION = 'v0.1.94';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -859,6 +859,60 @@ const NEW_TEX3 = {
 };
 for(const [id, name] of [[86, 'Mağara Kristali'], [87, 'Yosun Taşı'], [88, 'Kurumuş Kil'], [89, 'Kafatası Bloğu'], [90, 'Kemik Bloğu'], [91, 'Gökyüzü Taşı'], [92, 'Mantar Çimi'], [93, 'Sarmaşık Bloğu'], [94, 'Mühür Taşı'], [95, 'Obsidyen Kristal'], [96, 'Altın Bloğu'], [97, 'Elmas Bloğu'], [98, 'Zümrüt Bloğu'], [99, 'Bakır Bloğu'], [100, 'Kurşun Bloğu'], [101, 'Kuvars Bloğu'], [102, 'Seramik Turkuaz'], [103, 'Mor Yün'], [104, 'Sarı Beton'], [105, 'Pamuk Bloğu']]){
   const t = makePixelTexture(NEW_TEX3[id]);
+  BLOCKS[id] = { id, name, icon: t.canvas, getMats: () => LM(t.tex) };
+}
+
+/* ---- Blok grubu 4 (106-138): doğal ve dekor blokları, desenli ---- */
+function patTex(base, dark, kind){
+  return makePixelTexture(cx => {
+    cx.fillStyle = base; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = dark;
+    if(kind === 'speck'){ for(let i = 0; i < 24; i++) cx.fillRect((i * 7) % 16, (i * 11 + 3) % 16, 1, 1); }
+    else if(kind === 'spots'){ for(let i = 0; i < 6; i++) cx.fillRect((i * 5) % 14, (i * 9 + 2) % 14, 2, 2); }
+    else if(kind === 'grid'){ for(let x = 0; x < 16; x += 8){ cx.fillRect(x, 0, 1, 16); cx.fillRect(0, x, 16, 1); } }
+    else if(kind === 'stripes'){ for(let x = 0; x < 16; x += 4) cx.fillRect(x, 0, 1, 16); }
+    else if(kind === 'bricks'){ for(let y = 0; y < 16; y += 4){ cx.fillRect(0, y, 16, 1); for(let x = (y / 4) % 2 ? 4 : 0; x < 16; x += 8) cx.fillRect(x, y, 1, 4); } }
+    else if(kind === 'veins'){ for(let i = 0; i < 16; i++) cx.fillRect(i, (i * 3 + 2) % 16, 1, 1); }
+    else if(kind === 'cracks'){ cx.fillRect(2, 3, 5, 1); cx.fillRect(6, 4, 1, 4); cx.fillRect(9, 9, 4, 1); cx.fillRect(11, 5, 1, 4); }
+  });
+}
+const NEW_TEX4 = [
+  [106, 'Granit', '#9a6a5a', '#7a4e40', 'speck'],
+  [107, 'Andezit', '#8c8c8c', '#6e6e6e', 'speck'],
+  [108, 'Diyorit', '#d0d0cc', '#a8a8a4', 'speck'],
+  [109, 'Çakmaktaşı', '#3e3e44', '#2a2a30', 'speck'],
+  [110, 'Bazalt', '#3a3838', '#1e1e1e', 'cracks'],
+  [111, 'Tüf', '#b8a888', '#98866a', 'speck'],
+  [112, 'Kristal Kaya (Kırmızı)', '#b03a4a', '#7e2434', 'speck'],
+  [113, 'Turkuaz Kaya', '#3aa8a0', '#278078', 'speck'],
+  [114, 'Kahverengi Kum', '#a07a4c', '#7e5c34', 'speck'],
+  [115, 'Kaya Kiremidi', '#7a5a40', '#5a4030', 'grid'],
+  [116, 'Karlı Taş', '#d8ecf8', '#a8c8dc', 'spots'],
+  [117, 'Kireç Taşı', '#d8d2bc', '#b6ae92', 'speck'],
+  [118, 'Damarlı Mermer', '#d8d8d0', '#9a9a92', 'veins'],
+  [119, 'Kırmızı Toprak', '#9a4a2a', '#7a3418', 'speck'],
+  [120, 'Çamur', '#5a4a30', '#3e3220', 'spots'],
+  [121, 'Tundra Çimi', '#8a9a6a', '#6a7a4a', 'speck'],
+  [122, 'Fırtına Taşı', '#6a7078', '#4a5058', 'veins'],
+  [123, 'Kaya Mantarı', '#8a7a6a', '#5a4a3a', 'spots'],
+  [124, 'Yosunlu Toprak', '#5a7a3a', '#3e5a28', 'spots'],
+  [125, 'Kuru Yaprak Yığını', '#b8862a', '#8a6018', 'spots'],
+  [126, 'Kırık Tuğla Duvar', '#a0522d', '#6e3a1e', 'bricks'],
+  [127, 'Kireç Sıva', '#e8e4d8', '#c8c2b0', 'speck'],
+  [128, 'Ahşap Çit (Yatay)', '#9c7a4a', '#6b4a26', 'stripes'],
+  [129, 'Taş Döşeme', '#909090', '#6a6a6a', 'grid'],
+  [130, 'Dama Tahta Döşeme', '#a07040', '#6a4420', 'grid'],
+  [131, 'Pencere (Opak)', '#b8d4e8', '#5a7a94', 'grid'],
+  [132, 'Ocak Tuğlası', '#b04a2a', '#7a2e18', 'bricks'],
+  [133, 'Mozaik Taş', '#c8c0b0', '#6a6058', 'grid'],
+  [134, 'Oyulmuş Taş', '#8a8a84', '#5a5a54', 'stripes'],
+  [135, 'Porselen', '#f4f4f0', '#d0d0c8', 'speck'],
+  [136, 'Desenli Kumaş (Kırmızı)', '#a02a2a', '#6a1a1a', 'stripes'],
+  [137, 'Desenli Halı (Mavi)', '#2a4a8a', '#1a2e5a', 'grid'],
+  [138, 'Demir Parmaklık', '#8a8e96', '#5a5e66', 'stripes'],
+];
+for(const [id, name, base, dark, kind] of NEW_TEX4){
+  const t = patTex(base, dark, kind);
   BLOCKS[id] = { id, name, icon: t.canvas, getMats: () => LM(t.tex) };
 }
 
@@ -2665,7 +2719,7 @@ function addItem(id, n){
   renderHotbar();
   if($('invModal').style.display === 'flex') renderInventoryGrid(); // Açıkken envanter canlı güncellensin
 }
-function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49, 50, 51, 52, 53, 54, 60, 61, 62, 63, 64, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105].includes(id); }
+function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49, 50, 51, 52, 53, 54, 60, 61, 62, 63, 64, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 133, 134, 135, 136, 137, 138].includes(id); }
 function nearBlock(id, r = 4.5){
   const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
   for(let x = px - 4; x <= px + 4; x++) for(let y = py - 4; y <= py + 4; y++) for(let z = pz - 4; z <= pz + 4; z++){
