@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.81';
+const APP_VERSION = 'v0.1.82';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1615,9 +1615,10 @@ function createChunk(cx, cz){
 
       for(let y = 0; y <= h; y++){
         const idx = lx + lz * CHUNK_SIZE + y * CHUNK_SIZE * CHUNK_SIZE;
-        // Mağara boşlukları (yüzeyde girişler de oluşur); derin kısımlar lavla dolu
+        // Mağara boşlukları; derin kısımlar lavla dolu
         // Mağaralar sadece karada; deniz tabanında mağara ve lav olmaz
-        if(y >= 2 && h > SEA_LEVEL && caveFn(gx, y, gz)){
+        // Mağara yüzeyi delmesin: üstte en az 4 blok toprak/taş kalsın (yüzeyde garip delikler olmasın)
+        if(y >= 2 && y <= h - 4 && h > SEA_LEVEL && caveFn(gx, y, gz)){
           blocks[idx] = (y <= LAVA_Y) ? 24 : 0;
           continue;
         }
