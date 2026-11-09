@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.82';
+const APP_VERSION = 'v0.1.83';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -3568,7 +3568,8 @@ function animate(now){
   // C tuşu (hayatta kalma): eğil. Yavaş yürür ve bloktan düşmez.
   const sneaking = gameMode === 'survival' && keys['KeyC'] && player.onGround && !inWater;
   if(sneaking) isSprinting = false;
-  const speed = ((gameMode === 'creative') ? 8.5 : (isSprinting ? 7.4 : (sneaking ? 1.6 : 5.2))) * (inWater ? 0.6 : 1);
+  const creativeFast = gameMode === 'creative' && (keys['ShiftLeft'] || keys['ShiftRight']);
+  const speed = ((gameMode === 'creative') ? (creativeFast ? 16 : 8.5) : (isSprinting ? 7.4 : (sneaking ? 1.6 : 5.2))) * (inWater ? 0.6 : 1);
 
   let moveX = 0, moveZ = 0;
   if(forward !== 0 || strafe !== 0){
@@ -3588,7 +3589,7 @@ function animate(now){
     player.vy = 0;
   } else if(gameMode === 'creative'){
     if(keys['Space']) player.vy = 6.0;
-    else if(keys['ShiftLeft'] || keys['KeyC']) player.vy = -6.0;
+    else if(keys['KeyC']) player.vy = -6.0; // Shift artık alçaltmaz, hızlandırır
     else player.vy = 0;
   } else {
     if(keys['Space'] && player.onGround){
