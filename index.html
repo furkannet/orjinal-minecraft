@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.61';
+const APP_VERSION = 'v0.1.62';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1890,7 +1890,15 @@ function createMobMesh(type){
     body.position.y = 0.7;
     const legs = new THREE.Mesh(BG(0.4, 0.35, 0.35), ML(0x3d2514));
     legs.position.y = 0.175;
-    g.add(head, nose, body, legs);
+    const hat = new THREE.Mesh(BG(0.56, 0.14, 0.56), ML(0x5a3a1e));
+    hat.position.y = 1.65;
+    const brim = new THREE.Mesh(BG(0.7, 0.05, 0.7), ML(0x5a3a1e));
+    brim.position.y = 1.56;
+    const armL = new THREE.Mesh(BG(0.14, 0.55, 0.14), ML(0x6e4324));
+    armL.position.set(-0.36, 0.72, 0.05);
+    const armR = new THREE.Mesh(BG(0.14, 0.55, 0.14), ML(0x6e4324));
+    armR.position.set(0.36, 0.72, 0.05);
+    g.add(head, nose, body, legs, hat, brim, armL, armR);
     addFace(g, 1.35, 0.265, null, 0);
   } else if(type === 'zombie'){
     // Zombi: Yeşil kafa + Mavi üst + Kollar öne uzanmış
@@ -1902,7 +1910,9 @@ function createMobMesh(type){
     arms.position.set(0, 0.95, 0.3);
     const legs = new THREE.Mesh(BG(0.4, 0.45, 0.3), ML(0x2c3558));
     legs.position.y = 0.225;
-    g.add(head, body, arms, legs);
+    const hair = new THREE.Mesh(BG(0.52, 0.12, 0.52), ML(0x2d4a1e));
+    hair.position.y = 1.64;
+    g.add(head, body, arms, legs, hair);
     addFace(g, 1.35, 0.265, 1.2, 0.22);
   } else if(type === 'spitter'){
     // İskelet: Kemik rengi gövde, kollar, bacaklar ve ağzından zehir fırlatır
@@ -1973,6 +1983,17 @@ function createMobMesh(type){
       g.add(leg);
     }
     g.add(body, head);
+    if(type === 'cow'){ // siyah-beyaz benekler (gövde yanları)
+      for(const sx of [-0.36, 0.36]){
+        const spot = new THREE.Mesh(BG(0.02, 0.3, 0.3), MB(0x151515));
+        spot.position.set(sx, 0.7, -0.1);
+        g.add(spot);
+      }
+    } else { // koyun: burun
+      const nose = new THREE.Mesh(BG(0.2, 0.14, 0.08), ML(0xe8b89a));
+      nose.position.set(0, 0.84, 0.78);
+      g.add(nose);
+    }
     // Hayvan yüzü: iki göz (kafanın ön yüzü z=0.75)
     for(const ex of [-0.09, 0.09]){
       const e = new THREE.Mesh(BG(0.07, 0.07, 0.03), MB(0x111111));
@@ -2642,7 +2663,14 @@ function netAddPlayer(p){
   body.position.y = 0.85;
   const legs = new THREE.Mesh(BG(0.4, 0.5, 0.3), ML(0x2c3558));
   legs.position.y = 0.25;
-  g.add(head, body, legs);
+  const hair = new THREE.Mesh(BG(0.52, 0.14, 0.52), ML(0x3b2a1a));
+  hair.position.y = 1.66;
+  const armL = new THREE.Mesh(BG(0.14, 0.6, 0.14), ML(NET_COLORS[p.id % NET_COLORS.length]));
+  armL.position.set(-0.34, 0.85, 0);
+  const armR = new THREE.Mesh(BG(0.14, 0.6, 0.14), ML(NET_COLORS[p.id % NET_COLORS.length]));
+  armR.position.set(0.34, 0.85, 0);
+  g.add(head, body, legs, hair, armL, armR);
+  addFace(g, 1.45, 0.265, null, 0);
   // İsim etiketi (oyuncu başına bir tuval dokusu)
   const cv = document.createElement('canvas');
   cv.width = 128; cv.height = 32;
