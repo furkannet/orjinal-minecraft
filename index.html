@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.66';
+const APP_VERSION = 'v0.1.67';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -855,7 +855,7 @@ function tryShop(){
 
 /* ---- Skyblock: başlangıçta yalnızca tek bir çim bloğu (tek oyunculu ve sunucu aynı) ---- */
 // Adadaki tüm bloklar: [x, y, z, id] (dünya koordinatı). Oyuncu bu bloğun üstünde doğar (5.5, SKY_Y+1, 5.5).
-// Çok oyunculu Skyblock: her oyuncunun kendi adası (16 ada, 4x4 ızgara, adalar 1 milyon blok aralıklı).
+// Çok oyunculu Skyblock: her oyuncunun kendi adası (16 ada, 4x4 ızgara, adalar 10 bin blok aralıklı).
 // Yerel ada koordinatları (x,z 3..7 ve -40..7) hücre içinde +48 kaydırılır.
 function skyLocalIsland(out){
     // 3 kat derinlik: üstte çim, altta iki kat toprak
@@ -878,7 +878,7 @@ function skyLocalIsland(out){
     for(let dx = -1; dx <= 1; dx++) for(let dz = -1; dz <= 1; dz++) out.push([7 + dx, SKY_Y + 4, 7 + dz, 7]); // yaprak katmanı
     out.push([7, SKY_Y + 5, 7, 7]);
 }
-const SKY_CELL = 1000000, SKY_OFF = 48, SKY_SLOTS = 16; // adalar 1 milyon blok aralıklı
+const SKY_CELL = 10000, SKY_OFF = 48, SKY_SLOTS = 16; // adalar 10 bin blok aralıklı
 let skyNetCache = null;
 function skyHome(){ // oyuncunun kendi adasının kaydırma değeri [bx, bz]
   if(netMode && netRoomName === 'sky' && net.slot >= 0) return [(net.slot % 4) * SKY_CELL + SKY_OFF, Math.floor(net.slot / 4) * SKY_CELL + SKY_OFF];
