@@ -17,7 +17,30 @@ import os
 import re
 import sys
 
+import mimetypes
+from http import HTTPStatus
+from urllib.parse import unquote
+
 import websockets
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SERVE_EXT = {".html", ".js", ".json", ".css", ".png", ".jpg", ".ico", ".svg"}
+
+
+def http_files(path, request_headers):
+    """Oyun dosyalarını aynı porttan verir: telefon http://<bilgisayar-ip>:8765 açınca oyun yüklenir
+    ve çok oyunculu bağlantı otomatik bu bilgisayara gider. WebSocket istekleri olduğu gibi geçer."""
+    if request_headers.get("Upgrade", "").lower() == "websocket":
+        return None
+    rel = unquote(path.split("?", 1)[0]).lstrip("/") or "index.html"
+    full = os.path.realpath(os.path.join(BASE_DIR, rel))
+    ext = os.path.splitext(full)[1].lower()
+    if not full.startswith(BASE_DIR + os.sep) or ext not in SERVE_EXT or not os.path.isfile(full):
+        return (HTTPStatus.NOT_FOUND, [("Content-Type", "text/plain; charset=utf-8")], b"Bulunamadi\n")
+    with open(full, "rb") as f:
+        body = f.read()
+    ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
+    return (HTTPStatus.OK, [("Content-Type", ctype), ("Cache-Control", "no-cache")], body)
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 8765))
 CHUNK_Y = 150
@@ -184,7 +207,8 @@ async def main():
     load_state()
     asyncio.ensure_future(saver())
     print(f"Orijinal Minecraft sunucusu: ws://0.0.0.0:{PORT}  (odalar: {', '.join(ROOMS)})", flush=True)
-    async with websockets.serve(handler, "0.0.0.0", PORT, max_size=2**22):
+    print(f"Oyun adresi (telefon/başka cihaz): http://<bu-bilgisayarın-ip>:{PORT}/", flush=True)
+    async with websockets.serve(handler, "0.0.0.0", PORT, max_size=2**22, process_request=http_files):
         await asyncio.Future()
 
 
