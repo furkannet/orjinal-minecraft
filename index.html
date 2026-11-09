@@ -166,6 +166,16 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
       <button class="mcMenuBtn" onclick="selectSkin('alex')">Alex</button>
       <button class="mcMenuBtn" onclick="selectSkin('knight')">Şövalye</button>
       <button class="mcMenuBtn" onclick="selectSkin('donerci')">Dönerci</button>
+      <button class="mcMenuBtn" onclick="selectSkin('custom')" style="grid-column:span 2">🧑‍🎨 Benim Karakterim</button>
+    </div>
+    <div id="customBox" style="display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-bottom:14px;font-size:13px;color:#dfe6ef">
+      <label>Adın <input id="cName" maxlength="16" style="width:100%"></label>
+      <span></span>
+      <label>Ten <input id="cSkin" type="color"></label>
+      <label>Saç <input id="cHair" type="color"></label>
+      <label>Gömlek <input id="cShirt" type="color"></label>
+      <label>Pantolon <input id="cPants" type="color"></label>
+      <button class="mcMenuBtn" onclick="saveCustomChar()" style="grid-column:span 2">Kaydet ve giy</button>
     </div>
     <button class="mcMenuBtn" onclick="closeSubModal('charModal')" style="width:100%">Tamam</button>
   </div>
@@ -272,7 +282,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.76';
+const APP_VERSION = 'v0.1.77';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1111,6 +1121,7 @@ function openCharacterModal(){
   syncMainMenu();
   const cv = $('menuCharCanvas');
   if(cv) drawFigure(cv.getContext('2d'), selectedSkin);
+  fillCustomInputs();
 }
 
 function openMultiplayerModal(){
@@ -2637,7 +2648,7 @@ const netGroup = new THREE.Group();
 scene.add(netGroup);
 const netMeshes = new Map(); // oyuncu id -> {g, tx, ty, tz, tyaw}
 const NET_COLORS = [0xe74c3c, 0x3498db, 0x2ecc71, 0xf1c40f, 0x9b59b6, 0xe67e22];
-const netName = 'Oyuncu' + (100 + Math.floor(Math.random() * 900));
+let netName = localStorage.getItem('orijinalMinecraft.name') || ('Oyuncu' + (100 + Math.floor(Math.random() * 900)));
 
 function mpStatus(msg){ const el = $('mpStatus'); if(el) el.textContent = msg; }
 
@@ -2653,7 +2664,7 @@ function netConnect(room){
   let ws;
   try{ ws = new WebSocket(url); } catch(e){ mpStatus('Adres geçersiz'); return; }
   net.ws = ws;
-  ws.onopen = () => ws.send(JSON.stringify({t: 'hello', room, seed: SEED, name: netName}));
+  ws.onopen = () => ws.send(JSON.stringify({t: 'hello', room, seed: SEED, name: netName, look: (SKINS[selectedSkin] || SKINS.steve)}));
   ws.onmessage = e => { try{ netOnMessage(JSON.parse(e.data)); } catch(err){ console.error(err); } };
   ws.onerror = () => { if(net.ws === ws && !netMode) mpStatus('Sunucuya ulaşılamadı. server.py çalışıyor mu?'); };
   ws.onclose = () => {
@@ -2711,20 +2722,23 @@ function netEnter(m){
   toast(m.room === 'sky' ? '🏝️ Skyblock sunucusu: tek blokla başla!' : '🌍 Normal dünya sunucusu bağlandı');
 }
 
+function hexNum(c){ return parseInt(String(c).slice(1), 16) || 0; }
 function netAddPlayer(p){
   if(p.id === net.id || netMeshes.has(p.id)) return;
   const g = new THREE.Group();
-  const head = new THREE.Mesh(BG(0.5, 0.5, 0.5), ML(0xdca882));
+  const lk = p.look || SKINS.steve;
+  const skinC = hexNum(lk.skin), hairC = hexNum(lk.hair), shirtC = hexNum(lk.shirt), pantsC = hexNum(lk.pants);
+  const head = new THREE.Mesh(BG(0.5, 0.5, 0.5), ML(skinC));
   head.position.y = 1.45;
-  const body = new THREE.Mesh(BG(0.5, 0.7, 0.3), ML(NET_COLORS[p.id % NET_COLORS.length]));
+  const body = new THREE.Mesh(BG(0.5, 0.7, 0.3), ML(shirtC));
   body.position.y = 0.85;
-  const legs = new THREE.Mesh(BG(0.4, 0.5, 0.3), ML(0x2c3558));
+  const legs = new THREE.Mesh(BG(0.4, 0.5, 0.3), ML(pantsC));
   legs.position.y = 0.25;
-  const hair = new THREE.Mesh(BG(0.52, 0.14, 0.52), ML(0x3b2a1a));
+  const hair = new THREE.Mesh(BG(0.52, 0.14, 0.52), ML(hairC));
   hair.position.y = 1.66;
-  const armL = new THREE.Mesh(BG(0.14, 0.6, 0.14), ML(NET_COLORS[p.id % NET_COLORS.length]));
+  const armL = new THREE.Mesh(BG(0.14, 0.6, 0.14), ML(skinC));
   armL.position.set(-0.34, 0.85, 0);
-  const armR = new THREE.Mesh(BG(0.14, 0.6, 0.14), ML(NET_COLORS[p.id % NET_COLORS.length]));
+  const armR = new THREE.Mesh(BG(0.14, 0.6, 0.14), ML(skinC));
   armR.position.set(0.34, 0.85, 0);
   g.add(head, body, legs, hair, armL, armR);
   addFace(g, 1.45, 0.265, null, 0);
@@ -3094,8 +3108,36 @@ const SKINS = {
   steve:   { name: 'Steve', shirt: '#2288aa', pants: '#2c3558', hair: '#4e3018', skin: '#e0b08a' },
   alex:    { name: 'Alex', shirt: '#5b8731', pants: '#4e3825', hair: '#b05e26', skin: '#e5b894' },
   knight:  { name: 'Şövalye', shirt: '#a4b0bd', pants: '#636e78', hair: '#222222', skin: '#cfd8e0' },
-  donerci: { name: 'Dönerci', shirt: '#d92626', pants: '#222222', hair: '#1a1a1a', skin: '#deb887' }
+  donerci: { name: 'Dönerci', shirt: '#d92626', pants: '#222222', hair: '#1a1a1a', skin: '#deb887' },
+  custom:  { name: 'Benim Karakterim', shirt: '#3a7bd5', pants: '#2c3558', hair: '#4e3018', skin: '#e0b08a' }
 };
+const CUSTOM_KEY = 'orijinalMinecraft.custom';
+function loadCustomChar(){
+  try{
+    const d = JSON.parse(localStorage.getItem(CUSTOM_KEY) || 'null');
+    if(d) for(const k of ['shirt', 'pants', 'hair', 'skin']) if(/^#[0-9a-fA-F]{6}$/.test(d[k])) SKINS.custom[k] = d[k];
+  } catch(e){}
+}
+loadCustomChar();
+function fillCustomInputs(){
+  const set = (id, v) => { const el = $(id); if(el) el.value = v; };
+  set('cName', netName);
+  set('cSkin', SKINS.custom.skin); set('cHair', SKINS.custom.hair);
+  set('cShirt', SKINS.custom.shirt); set('cPants', SKINS.custom.pants);
+}
+function saveCustomChar(){
+  const c = SKINS.custom;
+  c.skin = $('cSkin').value; c.hair = $('cHair').value;
+  c.shirt = $('cShirt').value; c.pants = $('cPants').value;
+  const name = ($('cName').value || '').trim().slice(0, 16) || 'Oyuncu';
+  netName = name;
+  try{
+    localStorage.setItem(CUSTOM_KEY, JSON.stringify({skin: c.skin, hair: c.hair, shirt: c.shirt, pants: c.pants}));
+    localStorage.setItem('orijinalMinecraft.name', name);
+  } catch(e){}
+  selectSkin('custom');
+  toast('🧑‍🎨 Karakterin kaydedildi');
+}
 
 function selectSkin(skinName){
   selectedSkin = skinName;

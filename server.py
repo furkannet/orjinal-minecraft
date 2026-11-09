@@ -14,6 +14,7 @@ arazi her istemcide aynı tohumdan üretilir.
 import asyncio
 import json
 import os
+import re
 import sys
 
 import websockets
@@ -80,6 +81,20 @@ async def broadcast(room, msg, skip=None):
                 pass
 
 
+HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+DEFAULT_LOOK = {"skin": "#e0b08a", "hair": "#4e3018", "shirt": "#2288aa", "pants": "#2c3558"}
+
+
+def clean_look(raw):
+    """İstemcinin gönderdiği karakter renklerini doğrular; geçersizse varsayılanı kullanır."""
+    out = dict(DEFAULT_LOOK)
+    if isinstance(raw, dict):
+        for k in out:
+            if isinstance(raw.get(k), str) and HEX.match(raw[k]):
+                out[k] = raw[k]
+    return out
+
+
 def valid_block(x, y, z, bid):
     return all(isinstance(v, int) for v in (x, y, z, bid)) and abs(x) < 10**8 and abs(z) < 10**8 \
         and 0 <= y < CHUNK_Y and 0 <= bid < 256
@@ -120,7 +135,8 @@ async def handler(ws):
                     x, y, z = key.split(",")
                     mods += [int(x), int(y), int(z), bid]
                 room["clients"].add(ws)
-                room["players"][pid] = {"id": pid, "name": name, "x": 8.5, "y": 0, "z": 8.5, "yaw": 0, "pitch": 0}
+                room["players"][pid] = {"id": pid, "name": name, "x": 8.5, "y": 0, "z": 8.5, "yaw": 0, "pitch": 0,
+                                        "look": clean_look(m.get("look"))}
                 await send(ws, {"t": "welcome", "id": pid, "room": rname, "seed": room["seed"], "mods": mods,
                           "slot": slot, "slots": {str(i): n for i, n in room["slots"].items()},
                           "players": [p for p in room["players"].values() if p["id"] != pid]})
