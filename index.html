@@ -272,7 +272,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.59';
+const APP_VERSION = 'v0.1.60';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -3297,6 +3297,11 @@ function breakTarget(){
   if(!targetInfo) return;
   const { x, y, z } = targetInfo.hit;
   let id = getBlock(x, y, z);
+  // Gizli pazar ve portallar kırılamaz (tıklanınca hiçbir şey olmaz)
+  if(id === 56 || (Math.abs(x - MARKET_X) <= 16 && Math.abs(z - MARKET_Z) <= 16)){
+    toast('Bu blok kırılamaz');
+    return;
+  }
   if(id === 55) id = 54; // açık kapı kırılınca kapı düşer
   setBlock(x, y, z, 0);
   playSound('break');
