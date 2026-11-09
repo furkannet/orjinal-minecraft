@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.87';
+const APP_VERSION = 'v0.1.88';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1070,6 +1070,7 @@ function makeBoatMesh(){
   const seat = new THREE.Mesh(BG(0.7, 0.25, 0.6), MB(0x6b4220));
   seat.position.y = 0.25;
   g.add(hull, seat);
+  g.scale.set(1.8, 1.8, 1.8); // tekne büyük
   return g;
 }
 function boatAhead(){ // oyuncunun baktığı yönde, 4 blok içinde su hücresi
@@ -1134,7 +1135,7 @@ function updateBoats(dt){
     const cosY = Math.cos(player.yaw), sinY = Math.sin(player.yaw);
     const fx = -sinY * fwd, fz = -cosY * fwd, sx = cosY * strafe, sz = -sinY * strafe;
     const len = Math.hypot(fx + sx, fz + sz) || 1;
-    const sp = 5 * dt;
+    const sp = 10 * dt; // tekne hızlı
     const nx = b.x + (fx + sx) / len * sp, nz = b.z + (fz + sz) / len * sp;
     if(getBlock(Math.floor(nx), b.y - 0.95, Math.floor(nz)) === 13){ b.x = nx; b.z = nz; }
   }
