@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.91';
+const APP_VERSION = 'v0.1.92';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -774,6 +774,63 @@ const NEW_TEX = {
 };
 for(const [id, name] of [[66, 'Lapis'], [67, 'Kızıltaş'], [68, 'Bal Bloğu'], [69, 'Kaya Kristali'], [70, 'Mermer'], [71, 'Kumtaşı Tuğlası'], [72, 'Kırmızı Kumtaşı'], [73, 'Kiraz Tahtası'], [74, 'Bambu'], [75, 'Çiçek Bloğu']]){
   const t = makePixelTexture(NEW_TEX[id]);
+  BLOCKS[id] = { id, name, icon: t.canvas, getMats: () => LM(t.tex) };
+}
+
+/* ---- Blok grubu 2 (76-85): her biri desenli, düz renk değil ---- */
+const NEW_TEX2 = {
+  76: cx => { // Turuncu akasya tahtası: tahta çizgileri, turuncu
+    for(let y = 0; y < 16; y++){ cx.fillStyle = (y % 4 === 0) ? '#b8602a' : ((y % 2) ? '#d7782f' : '#c96a2a'); cx.fillRect(0, y, 16, 1); }
+    cx.fillStyle = '#8a4618'; cx.fillRect(0, 0, 16, 1); cx.fillRect(7, 4, 1, 3); cx.fillRect(3, 11, 1, 3);
+  },
+  77: cx => { // Koyu meşe tahtası: koyu kahve tahta, dikey damar
+    for(let y = 0; y < 16; y++){ cx.fillStyle = (y % 4 === 0) ? '#3a2514' : '#4e3220'; cx.fillRect(0, y, 16, 1); }
+    cx.fillStyle = '#2a1a0e'; cx.fillRect(5, 0, 1, 16); cx.fillRect(12, 0, 1, 16);
+  },
+  78: cx => { // Karbon bloğu: siyah, açık kenarlı kareler
+    cx.fillStyle = '#1a1a1a'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#2e2e2e'; for(let x = 0; x < 16; x += 8) for(let y = 0; y < 16; y += 8){ cx.fillRect(x, y, 8, 1); cx.fillRect(x, y, 1, 8); }
+    cx.fillStyle = '#3d3d3d'; cx.fillRect(2, 2, 2, 1); cx.fillRect(10, 10, 2, 1);
+  },
+  79: cx => { // Beton: gri, ince taneli
+    cx.fillStyle = '#8f8f8f'; cx.fillRect(0, 0, 16, 16);
+    for(let i = 0; i < 40; i++) px(cx, (i * 7 + 3) % 16, (i * 11 + 5) % 16, i % 2 ? '#7a7a7a' : '#a6a6a6');
+  },
+  80: cx => { // Kırmızı renkli cam (opak): panel çerçeveli, parlak köşe
+    cx.fillStyle = '#b03030'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#7a1c1c'; cx.fillRect(0, 0, 16, 1); cx.fillRect(0, 15, 16, 1); cx.fillRect(0, 0, 1, 16); cx.fillRect(15, 0, 1, 16);
+    cx.fillStyle = '#e06a6a'; cx.fillRect(3, 3, 2, 1); cx.fillRect(3, 4, 1, 1);
+  },
+  81: cx => { // Lav taşı: koyu taş, turuncu çatlaklar
+    cx.fillStyle = '#3a3a3a'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#ff7a1a';
+    for(const [x, y, w] of [[1, 3, 5], [7, 2, 4], [4, 9, 6], [10, 11, 4], [2, 13, 3]]) cx.fillRect(x, y, w, 1);
+    cx.fillStyle = '#ffb040'; cx.fillRect(3, 3, 2, 1); cx.fillRect(6, 9, 2, 1);
+  },
+  82: cx => { // Kaya tuzu: beyaz, kristal parıltı noktaları
+    cx.fillStyle = '#e8e4da'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#cfc8b8'; for(let i = 0; i < 10; i++) px(cx, (i * 5) % 16, (i * 7 + 2) % 16, '#cfc8b8');
+    cx.fillStyle = '#ffffff'; for(let i = 0; i < 6; i++) px(cx, (i * 9 + 1) % 16, (i * 4 + 3) % 16, '#ffffff');
+  },
+  83: cx => { // Buzlu taş: gri taş, üstünde açık buz lekeleri
+    cx.fillStyle = '#7d7d7d'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#5a5a5a'; for(let i = 0; i < 8; i++) px(cx, (i * 5) % 16, (i * 3 + 1) % 16, '#5a5a5a');
+    cx.fillStyle = '#b8e0f5'; cx.fillRect(1, 1, 6, 3); cx.fillRect(9, 8, 5, 4); cx.fillStyle = '#d8f0ff'; cx.fillRect(2, 1, 3, 1);
+  },
+  84: cx => { // Yaban mersini çalısı: koyu yeşil yapraklar, kırmızı meyveler
+    cx.fillStyle = '#2d5a2a'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#3f7a3a'; for(let i = 0; i < 20; i++) px(cx, (i * 5) % 16, (i * 7) % 16, '#3f7a3a');
+    cx.fillStyle = '#a02040'; for(const [x, y] of [[3, 4], [10, 3], [6, 10], [13, 11]]){ cx.fillRect(x, y, 2, 2); }
+  },
+  85: cx => { // Ateş kutusu: kömürleşmiş odun, turuncu közler
+    cx.fillStyle = '#3a2a1a'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#2a1c10'; for(let x = 0; x < 16; x += 4) cx.fillRect(x, 0, 1, 16);
+    cx.fillStyle = '#ff7a1a'; for(const [x, y] of [[2, 5], [9, 2], [6, 11], [12, 9]]) cx.fillRect(x, y, 2, 2);
+    cx.fillStyle = '#ffd040'; cx.fillRect(3, 6, 1, 1); cx.fillRect(10, 10, 1, 1);
+  }
+};
+for(const [id, name] of [[76, 'Turuncu Akasya Tahtası'], [77, 'Koyu Meşe Tahtası'], [78, 'Karbon Bloğu'], [79, 'Beton'], [80, 'Kırmızı Renkli Cam'], [81, 'Lav Taşı'], [82, 'Kaya Tuzu'], [83, 'Buzlu Taş'], [84, 'Yaban Mersini Çalısı'], [85, 'Ateş Kutusu']]){
+  const t = makePixelTexture(NEW_TEX2[id]);
   BLOCKS[id] = { id, name, icon: t.canvas, getMats: () => LM(t.tex) };
 }
 
@@ -2580,7 +2637,7 @@ function addItem(id, n){
   renderHotbar();
   if($('invModal').style.display === 'flex') renderInventoryGrid(); // Açıkken envanter canlı güncellensin
 }
-function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49, 50, 51, 52, 53, 54, 60, 61, 62, 63, 64, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75].includes(id); }
+function isPlaceable(id){ return (id >= 1 && id <= 26) || [40, 41, 46, 47, 49, 50, 51, 52, 53, 54, 60, 61, 62, 63, 64, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85].includes(id); }
 function nearBlock(id, r = 4.5){
   const px = Math.floor(player.x), py = Math.floor(player.y), pz = Math.floor(player.z);
   for(let x = px - 4; x <= px + 4; x++) for(let y = py - 4; y <= py + 4; y++) for(let z = pz - 4; z <= pz + 4; z++){
@@ -3400,6 +3457,14 @@ const RECIPES = [
   { out: 73, n: 4, inp: {5: 1}, table: true },                    // Odun -> Kiraz tahtası
   { out: 74, n: 2, inp: {7: 2}, table: true },                    // Yaprak -> Bambu
   { out: 75, n: 1, inp: {7: 1, 2: 1}, table: true },              // Yaprak + toprak -> Çiçek bloğu
+  { out: 76, n: 4, inp: {5: 1}, table: true },                    // Odun -> Turuncu akasya tahtası
+  { out: 77, n: 4, inp: {5: 1}, table: true },                    // Odun -> Koyu meşe tahtası
+  { out: 78, n: 1, inp: {14: 9}, table: true },                   // 9 kömür -> Karbon bloğu
+  { out: 79, n: 4, inp: {8: 2, 4: 2}, furnace: true },            // Kum + kırıktaş -> Beton (pişirme)
+  { out: 80, n: 1, inp: {9: 1}, table: true },                    // Cam -> Kırmızı renkli cam
+  { out: 83, n: 1, inp: {3: 1, 41: 1}, table: true },             // Taş + kar -> Buzlu taş
+  { out: 84, n: 1, inp: {7: 2}, table: true },                    // Yaprak -> Yaban mersini çalısı
+  { out: 85, n: 1, inp: {5: 1, 14: 1}, table: true },             // Odun + kömür -> Ateş kutusu
   { out: 32, n: 4, inp: {6: 2} },                                 // Tahta -> Çubuk
   { out: 40, n: 1, inp: {6: 4} },                                 // Tahta -> Çalışma Masası
   { out: 33, n: 1, inp: {6: 3, 32: 2}, table: true },             // Kazma
