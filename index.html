@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.86';
+const APP_VERSION = 'v0.1.87';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1062,8 +1062,7 @@ function tryChest(){
 
 /* ---- Tekne: model, binme, sürme (sadece su üzerinde) ---- */
 const boats = [];
-const boatGroup = new THREE.Group();
-scene.add(boatGroup);
+const boatGroup = new THREE.Group(); // sahneye ilk tekne konunca eklenir (scene burada henüz tanımlı değil)
 let riding = null;
 function makeBoatMesh(){
   const g = new THREE.Group();
@@ -1110,6 +1109,7 @@ function tryBoat(){
   if(gameMode === 'survival') addItem(65, -1);
   const b = { x: w.x + 0.5, z: w.z + 0.5, y: w.y + 0.95, yaw: player.yaw, mesh: makeBoatMesh() };
   b.mesh.position.set(b.x, b.y, b.z);
+  if(!boatGroup.parent) scene.add(boatGroup);
   boatGroup.add(b.mesh);
   boats.push(b);
   riding = b;
