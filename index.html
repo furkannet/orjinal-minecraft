@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.90';
+const APP_VERSION = 'v0.1.91';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -715,29 +715,65 @@ Object.assign(BLOCKS, {
   65: { id: 65, name: 'Tekne', icon: boatTex.canvas, getMats: () => LM(boatTex.tex) }
 });
 
-/* ---- Yeni blok grubu (66-75) ---- */
-function speckTex(base, dot, seed){
-  return makePixelTexture(cx => {
-    cx.fillStyle = base; cx.fillRect(0, 0, 16, 16);
-    cx.fillStyle = dot;
-    for(let i = 0; i < 14; i++){
-      cx.fillRect((i * 7 + Math.floor(seed) * 3) % 15, (i * 11 + Math.floor(seed) * 5) % 15, 2, 2); // sabit desen (tohuma bağlı değil)
+/* ---- Yeni blok grubu (66-75): her blok için gerçeğe yakın desen (tohuma bağlı değil) ---- */
+function px(cx, x, y, c){ cx.fillStyle = c; cx.fillRect(x, y, 1, 1); }
+const NEW_TEX = {
+  66: cx => { // Lapis: koyu mavi, altın noktalar
+    cx.fillStyle = '#1f3f9a'; cx.fillRect(0, 0, 16, 16);
+    for(let i = 0; i < 22; i++) px(cx, (i * 7) % 16, (i * 5 + 3) % 16, i % 3 ? '#3f63c4' : '#e0b84a');
+  },
+  67: cx => { // Kızıltaş: kırmızı, koyu çatlaklar
+    cx.fillStyle = '#8c2a2a'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#5c1a1a';
+    for(let i = 0; i < 6; i++) cx.fillRect((i * 5) % 14, (i * 7) % 14, 3, 1);
+    cx.fillStyle = '#c94a4a'; for(let i = 0; i < 8; i++) px(cx, (i * 9) % 16, (i * 4 + 1) % 16, '#c94a4a');
+  },
+  68: cx => { // Bal bloğu: sarı, altıgen kovan deseni
+    cx.fillStyle = '#d9a520'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#b07f12';
+    for(let y = 0; y < 16; y += 4) for(let x = (y / 4) % 2 ? 2 : 0; x < 16; x += 4){ cx.fillRect(x, y, 3, 1); cx.fillRect(x, y + 1, 1, 2); }
+  },
+  69: cx => { // Kaya kristali: mor, açık kırılma çizgileri
+    cx.fillStyle = '#6a4aa0'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#b48ce8';
+    for(let i = 0; i < 16; i++) px(cx, i, (i * 3) % 16, '#b48ce8');
+    cx.fillStyle = '#8a64c4'; cx.fillRect(3, 4, 5, 2); cx.fillRect(9, 10, 4, 2);
+  },
+  70: cx => { // Mermer: beyaz, gri damarlar
+    cx.fillStyle = '#e6e6e2'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#a8a8a4';
+    for(let i = 0; i < 16; i++) px(cx, i, Math.floor(i * 0.7 + 2) % 16, '#a8a8a4');
+    cx.fillStyle = '#c8c8c4'; cx.fillRect(10, 2, 2, 2); cx.fillRect(2, 11, 3, 1);
+  },
+  71: cx => { // Kumtaşı tuğlası: sarı tuğla örgüsü
+    cx.fillStyle = '#d8c488'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#a8966a';
+    for(let y = 0; y < 16; y += 8){ cx.fillRect(0, y, 16, 1); for(let x = (y / 8) % 2 ? 4 : 0; x < 16; x += 8) cx.fillRect(x, y, 1, 8); }
+  },
+  72: cx => { // Kırmızı kumtaşı: katmanlı kırmızı-kahve
+    for(let y = 0; y < 16; y++){ cx.fillStyle = (y % 4 === 3) ? '#8f4620' : ((y % 2) ? '#b9622e' : '#a9562a'); cx.fillRect(0, y, 16, 1); }
+  },
+  73: cx => { // Kiraz tahtası: pembe tahta, damar çizgileri
+    cx.fillStyle = '#e0889c'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#c06478';
+    for(let y = 0; y < 16; y += 4) cx.fillRect(0, y, 16, 1);
+    cx.fillStyle = '#f0a8b8'; cx.fillRect(3, 1, 4, 1); cx.fillRect(10, 9, 5, 1);
+  },
+  74: cx => { // Bambu: yeşil, dikey boğum çizgileri
+    cx.fillStyle = '#a8c24a'; cx.fillRect(0, 0, 16, 16);
+    cx.fillStyle = '#7e9a30';
+    for(let x = 0; x < 16; x += 4) cx.fillRect(x, 0, 1, 16);
+    for(let y = 5; y < 16; y += 6) cx.fillRect(0, y, 16, 1);
+  },
+  75: cx => { // Çiçek bloğu: yeşil zemin, sarı ve kırmızı çiçekler
+    cx.fillStyle = '#3f8a3a'; cx.fillRect(0, 0, 16, 16);
+    for(const [x, y, c] of [[2, 3, '#f0e04a'], [9, 2, '#e04a4a'], [5, 10, '#f0e04a'], [12, 11, '#e04a4a'], [8, 7, '#f0e04a']]){
+      cx.fillStyle = c; cx.fillRect(x, y, 2, 2); cx.fillStyle = '#2a6a26'; px(cx, x, y + 2, '#2a6a26');
     }
-  });
-}
-for(const [id, name, base, dot] of [
-  [66, 'Lapis', '#2a4fa8', '#5a84e0'],
-  [67, 'Kızıltaş', '#8c2a2a', '#c94a4a'],
-  [68, 'Bal Bloğu', '#d9a520', '#f2d060'],
-  [69, 'Kaya Kristali', '#6a4aa0', '#b48ce8'],
-  [70, 'Mermer', '#d8d8d4', '#f4f4f0'],
-  [71, 'Kumtaşı Tuğlası', '#d8c488', '#b8a66a'],
-  [72, 'Kırmızı Kumtaşı', '#b9622e', '#8f4620'],
-  [73, 'Kiraz Tahtası', '#e0889c', '#c06478'],
-  [74, 'Bambu', '#a8c24a', '#7e9a30'],
-  [75, 'Çiçek Bloğu', '#3f8a3a', '#f0e04a']
-]){
-  const t = speckTex(base, dot, id * 1.9);
+  }
+};
+for(const [id, name] of [[66, 'Lapis'], [67, 'Kızıltaş'], [68, 'Bal Bloğu'], [69, 'Kaya Kristali'], [70, 'Mermer'], [71, 'Kumtaşı Tuğlası'], [72, 'Kırmızı Kumtaşı'], [73, 'Kiraz Tahtası'], [74, 'Bambu'], [75, 'Çiçek Bloğu']]){
+  const t = makePixelTexture(NEW_TEX[id]);
   BLOCKS[id] = { id, name, icon: t.canvas, getMats: () => LM(t.tex) };
 }
 
