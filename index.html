@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.95';
+const APP_VERSION = 'v0.1.96';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1322,6 +1322,86 @@ function nearestBoat(maxD){
   }
   return best;
 }
+/* ---- Yay (139), ok (140), ip (141): sağ tıkla ok at; ok kaybolur, yaratığa isabet eder ---- */
+Object.assign(BLOCKS, {
+  139: itemDef(139, 'Yay', '#9a7040', 'stick'),
+  140: itemDef(140, 'Ok', '#c49a45', 'stick'),
+  141: itemDef(141, 'İp', '#eeeeee', 'square')
+});
+const arrows = [];
+const arrowGroup = new THREE.Group();
+let bowCd = 0;
+function makeArrowMesh(){
+  const g = new THREE.Group();
+  const shaft = new THREE.Mesh(BG(0.05, 0.05, 0.6), ML(0xc49a45));
+  const head = new THREE.Mesh(BG(0.1, 0.1, 0.12), ML(0x555555));
+  head.position.z = -0.34;
+  g.add(shaft, head);
+  return g;
+}
+function damageMob(m, dmg){
+  m.hp -= dmg;
+  if(m.hp > 0) return;
+  const i = mobs.indexOf(m);
+  if(i >= 0){ mobGroup.remove(m.mesh); mobs.splice(i, 1); }
+  for(const [id, min, max] of (LOOT[m.type] || [])){
+    const n = min + Math.floor(Math.random() * (max - min + 1));
+    for(let k = 0; k < n; k++) spawnDrop(m.x, m.y + 0.3, m.z, id);
+  }
+}
+function tryBow(){
+  if(hotbarSlots[activeSlotIdx] !== 139) return false;
+  if(bowCd > 0) return true;
+  if(gameMode === 'survival'){
+    if(invCount(140) <= 0){ toast('Okun yok! Ok yap (çalışma masası)'); return true; }
+    addItem(140, -1);
+  }
+  bowCd = 0.5;
+  const cp = Math.cos(player.pitch), sp = Math.sin(player.pitch);
+  const dx = -Math.sin(player.yaw) * cp, dy = sp, dz = -Math.cos(player.yaw) * cp;
+  const speed = 28;
+  const a = {
+    x: player.x, y: player.y + player.height * 0.85, z: player.z,
+    vx: dx * speed, vy: dy * speed, vz: dz * speed, life: 3,
+    mesh: makeArrowMesh()
+  };
+  if(!arrowGroup.parent) scene.add(arrowGroup);
+  arrowGroup.add(a.mesh);
+  arrows.push(a);
+  playSound('place');
+  return true;
+}
+function updateArrows(dt){
+  if(bowCd > 0) bowCd -= dt;
+  for(let i = arrows.length - 1; i >= 0; i--){
+    const a = arrows[i];
+    a.vy -= 12 * dt; // yerçekimi
+    a.x += a.vx * dt; a.y += a.vy * dt; a.z += a.vz * dt;
+    a.life -= dt;
+    let hit = a.life <= 0 || a.y < -10;
+    if(!hit){
+      for(const m of mobs.slice()){
+        if(Math.hypot(m.x - a.x, m.z - a.z) < 0.7 && a.y > m.y - 0.2 && a.y < m.y + 2.2){
+          damageMob(m, 4);
+          hit = true;
+          break;
+        }
+      }
+    }
+    if(!hit){
+      const id = getBlock(Math.floor(a.x), Math.floor(a.y), Math.floor(a.z));
+      if(id !== 0 && !TRANSP[id]) hit = true; // katı blok: ok durur
+    }
+    if(hit){
+      arrowGroup.remove(a.mesh);
+      arrows.splice(i, 1);
+      continue;
+    }
+    a.mesh.position.set(a.x, a.y, a.z);
+    a.mesh.lookAt(a.x + a.vx, a.y + a.vy, a.z + a.vz);
+  }
+}
+
 function tryBoat(){
   if(riding){ // sağ tık: inerken tekne yerinde kalır
     riding = null;
@@ -3418,6 +3498,7 @@ window.addEventListener('mousedown', e => {
   }
   else if(e.button === 2){
     if(tryShop()) return; // Satıcıya sağ tıklayınca takas listesi açılır
+    if(tryBow()) return; // Yay: ok at
     if(tryBoat()) return; // Tekne: suya koy / bin / in
     if(tryChest()) return; // Sandığa sağ tıklayınca sandık açılır
     if(tryUseDoor()) return; // Kapıya bakıp sağ tıklayınca açılır/kapanır
@@ -3576,6 +3657,9 @@ const RECIPES = [
   { out: 83, n: 1, inp: {3: 1, 41: 1}, table: true },             // Taş + kar -> Buzlu taş
   { out: 84, n: 1, inp: {7: 2}, table: true },                    // Yaprak -> Yaban mersini çalısı
   { out: 85, n: 1, inp: {5: 1, 14: 1}, table: true },             // Odun + kömür -> Ateş kutusu
+  { out: 141, n: 2, inp: {21: 1}, table: true },                  // Yün -> İp
+  { out: 139, n: 1, inp: {32: 3, 141: 3}, table: true },          // 3 çubuk + 3 ip -> Yay
+  { out: 140, n: 4, inp: {32: 1, 4: 1}, table: true },            // Çubuk + kırıktaş -> Ok
   { out: 96, n: 1, inp: {16: 9}, table: true },                   // 9 altın -> Altın bloğu
   { out: 97, n: 1, inp: {11: 9}, table: true },                   // 9 elmas -> Elmas bloğu
   { out: 103, n: 1, inp: {22: 1, 23: 1}, table: true },           // Kırmızı + mavi yün -> Mor yün
@@ -4236,6 +4320,7 @@ function animate(now){
 
   netLerp(dt);
   updateBoats(dt);
+  updateArrows(dt);
   if(skyMode) skyGeneratorTick(dt);
   updateRaycast();
   updateMining(dt);
