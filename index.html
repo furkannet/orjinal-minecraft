@@ -283,7 +283,7 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#
 
 <script src="three.min.js"></script>
 <script>
-const APP_VERSION = 'v0.1.97';
+const APP_VERSION = 'v0.1.98';
 function $(id){ return document.getElementById(id); }
 
 function toast(msg){
@@ -1323,8 +1323,13 @@ function nearestBoat(maxD){
   return best;
 }
 /* ---- Yay (139), ok (140), ip (141): sağ tıkla ok at; ok kaybolur, yaratığa isabet eder ---- */
+const bowIconTex = makePixelTexture(cx => {
+  cx.clearRect(0, 0, 16, 16);
+  for(let y = 1; y < 15; y++){ const u = (y - 7.5) / 6.5; const x = Math.round(9 - 4 * (1 - u * u)); cx.fillStyle = '#8b5a2b'; cx.fillRect(x - 1, y, 2, 1); }
+  cx.fillStyle = '#f2f2f2'; for(let y = 1; y < 15; y++) cx.fillRect(12, y, 1, 1);
+});
 Object.assign(BLOCKS, {
-  139: itemDef(139, 'Yay', '#9a7040', 'stick'),
+  139: { id: 139, name: 'Yay', icon: bowIconTex.canvas, getMats: () => LM(bowIconTex.tex) },
   140: itemDef(140, 'Ok', '#c49a45', 'stick'),
   141: itemDef(141, 'İp', '#eeeeee', 'square')
 });
@@ -1355,27 +1360,66 @@ function damageMob(m, dmg){
     for(let k = 0; k < n; k++) spawnDrop(m.x, m.y + 0.3, m.z, id);
   }
 }
-function tryBow(){
+let bowDrawing = false, bowDraw = 0;
+function tryBow(){ // sağ tuşa basınca yay çekilmeye başlar (bırakınca atılır)
   if(hotbarSlots[activeSlotIdx] !== 139) return false;
   if(bowCd > 0) return true;
+  if(gameMode === 'survival' && invCount(140) <= 0){ toast('Okun yok! Ok yap (çalışma masası)'); return true; }
+  bowDrawing = true; bowDraw = 0;
+  return true;
+}
+function releaseBow(){ // sağ tuş bırakılınca ok atılır; çekme ne kadar uzunsa o kadar hızlı ve güçlü
+  if(!bowDrawing) return;
+  bowDrawing = false;
+  const power = Math.max(0.25, bowDraw);
+  bowDraw = 0;
   if(gameMode === 'survival'){
-    if(invCount(140) <= 0){ toast('Okun yok! Ok yap (çalışma masası)'); return true; }
+    if(invCount(140) <= 0){ toast('Okun yok!'); return; }
     addItem(140, -1);
   }
-  bowCd = 0.5;
+  fireArrow(power);
+  bowCd = 0.25;
+}
+function fireArrow(power){
   const cp = Math.cos(player.pitch), sp = Math.sin(player.pitch);
   const dx = -Math.sin(player.yaw) * cp, dy = sp, dz = -Math.cos(player.yaw) * cp;
-  const speed = 28;
+  const speed = 14 + 26 * power;
   const a = {
     x: player.x, y: player.y + player.height * 0.85, z: player.z,
     vx: dx * speed, vy: dy * speed, vz: dz * speed, life: 3,
+    dmg: Math.round(2 + 6 * power),
     mesh: makeArrowMesh()
   };
   if(!arrowGroup.parent) scene.add(arrowGroup);
   arrowGroup.add(a.mesh);
   arrows.push(a);
   playSound('place');
-  return true;
+}
+let bowParts = null; // initBowView ile kurulur (kamera hazır olduktan sonra)
+let bowBarEl = null;
+function updateBow(dt){
+  if(bowCd > 0) bowCd -= dt;
+  if(!bowParts) return;
+  const { view: bowView, string: bowString, arrow: bowArrow } = bowParts;
+  const selected = hotbarSlots[activeSlotIdx] === 139;
+  bowView.visible = selected;
+  if(bowDrawing) bowDraw = Math.min(1, bowDraw + dt / 1.0); // tam çekme: 1 sn
+  const pull = bowDrawing ? bowDraw : 0;
+  bowString.position.z = 0.02 + pull * 0.22;   // tendon geriye çekilir
+  bowArrow.visible = bowDrawing || bowCd > 0;
+  bowArrow.position.z = -0.02 + pull * 0.22;   // ok tendona bağlı, birlikte geri gelir
+  if(bowDrawing && selected){
+    if(!bowBarEl){
+      bowBarEl = document.createElement('div');
+      bowBarEl.style.cssText = 'position:fixed;left:50%;bottom:120px;transform:translateX(-50%);width:140px;height:10px;background:#000a;border:2px solid #444;border-radius:4px;z-index:5;pointer-events:none';
+      bowBarEl.innerHTML = '<div style="height:100%;width:0;background:linear-gradient(90deg,#f2c23a,#e05030);border-radius:2px"></div>';
+      document.body.appendChild(bowBarEl);
+    }
+    bowBarEl.style.display = 'block';
+    bowBarEl.firstChild.style.width = Math.round(bowDraw * 100) + '%';
+  } else if(bowBarEl){
+    bowBarEl.style.display = 'none';
+  }
 }
 function updateArrows(dt){
   if(bowCd > 0) bowCd -= dt;
@@ -1388,7 +1432,7 @@ function updateArrows(dt){
     if(!hit){
       for(const m of mobs.slice()){
         if(Math.hypot(m.x - a.x, m.z - a.z) < 0.7 && a.y > m.y - 0.2 && a.y < m.y + 2.2){
-          damageMob(m, 4);
+          damageMob(m, a.dmg || 4);
           hit = true;
           break;
         }
@@ -2914,7 +2958,7 @@ function updateSurvival(dt){
 }
 
 // Yaratık türü -> düşen eşyalar [id, min, max]
-const LOOT = { zombie: [[27, 1, 2]], cow: [[36, 1, 3]], sheep: [[21, 1, 2], [36, 1, 2]] };
+const LOOT = { zombie: [[27, 1, 2]], cow: [[36, 1, 3]], sheep: [[21, 1, 2], [36, 1, 2]], spitter: [[140, 1, 3], [139, 0, 1]] }; // iskelet: 1-3 ok, %50 ihtimalle yay
 
 // Bakılan yönde, menzildeki ilk saldırılabilir yaratığı bulur
 function findMobInFront(maxD){
@@ -3187,9 +3231,31 @@ shieldMesh.position.set(-0.32, -0.25, -0.5);
 shieldMesh.rotation.set(0.1, 0.4, 0);
 shieldMesh.visible = false;
 camera.add(shieldMesh);
+function initBowView(){
+// Yay modeli (elde, kamerada) ve çekilen ok; çekme animasyonu
+const bowView = new THREE.Group();
+bowView.position.set(0.3, -0.27, -0.5);
+bowView.rotation.set(0.1, -0.35, 0);
+camera.add(bowView);
+const bowGripMesh = new THREE.Mesh(BG(0.035, 0.2, 0.035), ML(0x6b4220));
+const bowLimbUp = new THREE.Mesh(BG(0.03, 0.42, 0.03), ML(0x8b5a2b));
+bowLimbUp.position.set(0, 0.3, 0.02); bowLimbUp.rotation.x = -0.35;
+const bowLimbDn = new THREE.Mesh(BG(0.03, 0.42, 0.03), ML(0x8b5a2b));
+bowLimbDn.position.set(0, -0.3, 0.02); bowLimbDn.rotation.x = 0.35;
+const bowString = new THREE.Mesh(BG(0.008, 0.66, 0.008), MB(0xf2f2f2));
+bowString.position.set(0, 0, 0.02);
+const bowArrow = makeArrowMesh();
+bowArrow.rotation.y = Math.PI;
+bowArrow.scale.setScalar(0.9);
+bowView.add(bowGripMesh, bowLimbUp, bowLimbDn, bowString, bowArrow);
+bowView.visible = false;
+  bowParts = { view: bowView, string: bowString, arrow: bowArrow };
+}
+initBowView();
 function updateHeld(){
   shieldMesh.visible = equip.offhand === 45;
   const id = hotbarSlots[activeSlotIdx];
+  if(id === 139){ heldMesh.visible = false; return; } // yay: yay modeli kullanılır
   if(!BLOCKS[id]){ heldMesh.visible = false; return; }
   heldMesh.visible = (gameMode !== 'survival') || invCount(id) > 0; // Envanterde yoksa elde görünmez
   if(id === heldId) return;
@@ -3513,7 +3579,7 @@ window.addEventListener('mousedown', e => {
 });
 window.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('mousedown', e => { if(e.button === 2) rmbHeld = true; });
-window.addEventListener('mouseup', e => { if(e.button === 2) rmbHeld = false; if(e.button === 0) lmbHeld = false; });
+window.addEventListener('mouseup', e => { if(e.button === 2){ rmbHeld = false; releaseBow(); } if(e.button === 0) lmbHeld = false; });
 
 let isTouchDevice = false;
 let touchLookId = null, lastTouchX = 0, lastTouchY = 0;
@@ -4327,6 +4393,7 @@ function animate(now){
   netLerp(dt);
   updateBoats(dt);
   updateArrows(dt);
+  updateBow(dt);
   if(skyMode) skyGeneratorTick(dt);
   updateRaycast();
   updateMining(dt);
